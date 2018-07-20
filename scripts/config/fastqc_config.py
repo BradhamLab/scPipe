@@ -9,7 +9,6 @@ Author: Dakota Hawkins
 import os
 import re
 import yaml
-import sys
 
 
 def extract_fastq_info(fastq_file):
@@ -85,16 +84,11 @@ def create_yaml(fastqc, outdir):
         None
     """
 
-    if isinstance(fastqc, str) and os.path.exists(fastqc):
+    if isinstance(fastqc, str) and isinstance(outdir, str):
         sample_dict = get_fastq_dict(fastqc)
-        if isinstance(outdir, str) and os.path.exists(outdir):
-            outfile = os.path.join(outdir, 'config.yaml')
-            with open(outfile, 'w') as f:
-                yaml.dump(sample_dict, f)
-        else:
-            raise IOError("{} is not a valid directory".format(outdir))
-    else:
-        raise IOError("{} is not a valid directory.".format(fastqc))
+        outfile = os.path.join(outdir, 'config.yaml')
+        with open(outfile, 'w') as f:
+            yaml.dump(sample_dict, f)
 
 
 def usage():
@@ -111,13 +105,19 @@ directory and a desired output location.\n\
 
 
 if __name__ == '__main__':
-    args = sys.argv
-    if len(args) == 3:
-        fastqc = args[1]
-        outdir = args[2]
-        create_yaml(fastqc, outdir)
-    else:
-        print("\n\nError: No fastq directory provided.\n\n")
-        usage()
-        sys.exit(1)
+    # import snakemake
+    try:
+        print(snakemake.input)
+        create_yaml(snakemake.input[0], snakemake.input[1])
+    except NameError:
+        import sys
+        args = sys.argv
+        if len(args) == 3:
+            fastqc = args[1]
+            outdir = args[2]
+            create_yaml(fastqc, outdir)
+        else:
+            print("\n\nError: No fastq directory provided.\n\n")
+            usage()
+            sys.exit(1)
 
