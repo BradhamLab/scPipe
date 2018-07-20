@@ -1,0 +1,2 @@
+fastq_dir: "/home/dakota/PythonModules/scRNAseqPipeline/data/fastq"
+out_dir: "/home/dakota/PythonModules/scRNAseqPipeline/"
