@@ -1,0 +1,17 @@
+MK886-PMCs-3-H09_S93:
+- {file: ../../data/fastq/MK886-PMCs-3-H09_S93/MK886-PMCs-3-H09_S93_L003_R1_001.fastq.gz,
+  lane: L003, read: R1}
+- {file: ../../data/fastq/MK886-PMCs-3-H09_S93/MK886-PMCs-3-H09_S93_L002_R1_001.fastq.gz,
+  lane: L002, read: R1}
+- {file: ../../data/fastq/MK886-PMCs-3-H09_S93/MK886-PMCs-3-H09_S93_L004_R1_001.fastq.gz,
+  lane: L004, read: R1}
+- {file: ../../data/fastq/MK886-PMCs-3-H09_S93/MK886-PMCs-3-H09_S93_L001_R2_001.fastq.gz,
+  lane: L001, read: R2}
+- {file: ../../data/fastq/MK886-PMCs-3-H09_S93/MK886-PMCs-3-H09_S93_L004_R2_001.fastq.gz,
+  lane: L004, read: R2}
+- {file: ../../data/fastq/MK886-PMCs-3-H09_S93/MK886-PMCs-3-H09_S93_L001_R1_001.fastq.gz,
+  lane: L001, read: R1}
+- {file: ../../data/fastq/MK886-PMCs-3-H09_S93/MK886-PMCs-3-H09_S93_L003_R2_001.fastq.gz,
+  lane: L003, read: R2}
+- {file: ../../data/fastq/MK886-PMCs-3-H09_S93/MK886-PMCs-3-H09_S93_L002_R2_001.fastq.gz,
+  lane: L002, read: R2}
