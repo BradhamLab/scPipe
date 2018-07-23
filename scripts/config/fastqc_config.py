@@ -70,7 +70,7 @@ def get_fastq_dict(fastq_dir):
     return(samples)
 
 
-def create_yaml(fastqc, outdir):
+def create_yaml(fastqc, outfile):
     """
     Create a yaml configuration file.
     
@@ -79,14 +79,13 @@ def create_yaml(fastqc, outdir):
 
     Args:
         fastqc (str): top-level directory for fastq data.
-        outdir (str): location to write output yaml.
+        outfile (str): output yaml file name.
     Returns:
         None
     """
 
-    if isinstance(fastqc, str) and isinstance(outdir, str):
+    if isinstance(fastqc, str) and isinstance(outfile, str):
         sample_dict = get_fastq_dict(fastqc)
-        outfile = os.path.join(outdir, 'config.yaml')
         with open(outfile, 'w') as f:
             yaml.dump(sample_dict, f)
 
@@ -97,27 +96,27 @@ directory and a desired output location.\n\
 
     Args:\n\
         fastqc (str): top-level directory for fastq data.\n\
-        outdir (str): location to write output yaml.\n\
+        outfile (str): output yaml file name.\n\
 
     Execution:\n\
         python create_config_yaml.py <fastqc> <outdir>\n\n'''
     print(outstr)  
 
-
-if __name__ == '__main__':
-    # import snakemake
-    try:
-        print(snakemake.input)
-        create_yaml(snakemake.input[0], snakemake.input[1])
-    except NameError:
-        import sys
-        args = sys.argv
-        if len(args) == 3:
-            fastqc = args[1]
-            outdir = args[2]
-            create_yaml(fastqc, outdir)
-        else:
-            print("\n\nError: No fastq directory provided.\n\n")
-            usage()
-            sys.exit(1)
+create_yaml(snakemake.params[0], snakemake.params[1])
+# if __name__ == '__main__':
+#     # import snakemake
+#     try:
+#         print(snakemake.input)
+#         create_yaml(snakemake.params[0], snakemake.params[1])
+#     except NameError:
+#         import sys
+#         args = sys.argv
+#         if len(args) == 3:
+#             fastqc = args[1]
+#             outdir = args[2]
+#             create_yaml(fastqc, outdir)
+#         else:
+#             print("\n\nError: No fastq directory provided.\n\n")
+#             usage()
+#             sys.exit(1)
 
