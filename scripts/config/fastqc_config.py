@@ -46,27 +46,16 @@ def get_fastq_dict(fastq_dir):
         fastq_dir (str): path to parent directory holding fastq
             files/directories.
     Returns:
-        (dict): dictionary with sample names as keys and list of associated
-            fastq files.
+        (dict): dictionary with 'samples' key linking to dictionary of sample
+            names. Sample names link to a list of associated fastq files and
+            related information.
     """
     samples = dict()
+    samples['samples'] = {}
     for path, dirs, files in os.walk(fastq_dir):
         fastq_files = [extract_fastq_info(x) for x in files if 'fastq' in x]
         if len(fastq_files) > 0:
-            for i, each in enumerate(fastq_files):
-
-                file_loc = os.path.join(path, each['file'])
-                # new sample, create entry
-                if i == 0:
-                    samples[each['sample']] = [{'file': file_loc,
-                                                'lane': each['lane'],
-                                                'read': each['read']}]
-
-                # append additional files to sample list
-                else:
-                    samples[each['sample']].append({'file': file_loc,
-                                                    'lane': each['lane'],
-                                                    'read': each['read']})
+            samples['samples'][os.path.basename(path)] = path
     return(samples)
 
 
