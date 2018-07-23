@@ -2,13 +2,13 @@ configfile: 'config.yaml'
 
 rule all:
     input:
-        config['qc_config_out'] + 'config.yaml'
+        config['qc_config_out']
 
 rule fastqc_config:
-    input:
-        fastqs=config['qc_config_in']
-        outdir=config['qc_config_out]
+    params:
+        fastqs=config['qc_config_in'],
+        outdir=config['qc_config_out']
     output:
-        temp(config['qc_config_out'] + 'config.yaml')
+        config['qc_config_out']
     script:
         "fastqc_config.py"
