@@ -1,3 +1,11 @@
-data/*
+# ignore dag images
+*svg
+*png
+
+# ignore snakemake stuff
 .snakemake
+
+# ignore directories created by snakemake
+data/*
 output/*
+logs/*
