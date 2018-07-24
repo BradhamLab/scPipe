@@ -13,7 +13,8 @@ rule fastq_combine:
     input:
         'data/fastq/{sample}'
     output:
-        'output/fastq/{sample}/{sample}_{end}.fastq.gz'
+        # temporary because we'll aligned to filtered data
+        temp('output/fastq/{sample}/{sample}_{end}.fastq.gz')
     shell:
         'cat {input}/{wildcards.sample}*_{wildcards.end}_*.fastq.gz > {output}'
 
