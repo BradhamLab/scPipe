@@ -7,7 +7,7 @@ ENDS = ['R1', 'R2']
 
 rule all:
     input:
-        expand('output/qc/{sample}/{sample}_{end}_qc.fastq.gz', sample=SAMPLES, end=ENDS)
+        expand('output/qc/{sample}/{sample}_{end}_qc.fastq.gz', sample=config['samples'], end=ENDS)
 
 # combine lanes for each read direction
 rule fastq_combine:
@@ -28,8 +28,19 @@ rule fastp_qc:
     output:
         r1='output/qc/{sample}/{sample}_R1_qc.fastq.gz',
         r2='output/qc/{sample}/{sample}_R2_qc.fastq.gz',
-        html='output/qc/{sample}/{sample}_qc.html',
-        json='output/qc/{sample}/{sample}_qc.json'
+        html='output/qc/{sample}/fastp.html',
+        json='output/qc/{sample}/fastp.json'
     shell:
         '(fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} -h {output.html} -j {output.json}) 2> {log}'
+
+# Aggregate QC results with MultiQC - Not working
+#rule run_multiqc:
+#    input:
+#        'output/qc'
+#    output:
+#        'output/multiqc/multiqc_report.html'
+#    log:
+#        'logs/multiqc/multiqc.log'
+#    shell:
+#        '(conda activate multiqc; multiqc {input} -o output/multiqc/) 2> {log}'
     
