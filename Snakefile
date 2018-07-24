@@ -2,7 +2,7 @@
 # retrieve config file
 configfile: 'files/config.yaml'
 
-SAMPLES = ['MK886-PMCs-3-H09_S93','MK886-PMCs-3-H12_151937799']
+SAMPLES = ['MK886-PMCs-3-H09_S93','MK886-PMCs-3-H12_S96']
 ENDS = ['R1', 'R2']
 
 rule all:
@@ -23,11 +23,13 @@ rule fastp_qc:
     input:
         r1='output/fastq/{sample}/{sample}_R1.fastq.gz',
         r2='output/fastq/{sample}/{sample}_R2.fastq.gz'
+    log:
+        'logs/fastp/{sample}.log'
     output:
         r1='output/qc/{sample}/{sample}_R1_qc.fastq.gz',
         r2='output/qc/{sample}/{sample}_R2_qc.fastq.gz',
         html='output/qc/{sample}/{sample}_qc.html',
         json='output/qc/{sample}/{sample}_qc.json'
     shell:
-        'fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} -h {output.html} -j {output.json}'
+        '(fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} -h {output.html} -j {output.json}) 2> {log}'
     
