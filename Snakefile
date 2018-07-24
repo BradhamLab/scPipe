@@ -2,7 +2,6 @@
 # retrieve config file
 configfile: 'files/config.yaml'
 
-SAMPLES = ['MK886-PMCs-3-H09_S93','MK886-PMCs-3-H12_S96']
 ENDS = ['R1', 'R2']
 
 rule all:
