@@ -13,7 +13,7 @@ Two conda environments are required to run the pipeline:
 Create the alignment environment using the `requirements.txt`. In a terminal, with an accessible `conda` installation, issue the following command:
 
 ```{bash}
-conda create --name alignment --file alignment_spec.txt 
+conda create -n alignment --file alignment_spec.txt 
 ```
 
 2. MultiQC
@@ -21,7 +21,7 @@ conda create --name alignment --file alignment_spec.txt
 The MultiQC environment should be built using the following instructions:
 
 ```{bash}
-conda create -n multiqc --no-default-packages
-conda install pip
+conda create -n multiqc pip --no-default-packages
+source activate multiqc
 pip install --upgrade --force-reinstall git+https://github.com/ewels/MultiQC.git --ignore-installed certifi
 ```
