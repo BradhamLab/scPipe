@@ -27,8 +27,8 @@ IDS = list(DIRNAMES.keys())
 
 rule all:
     input:
-        expand('output/qc/{sample}/{sample}_{end}_qc.fastq.gz', sample=IDS,
-                end=ENDS)
+        expand(os.path.join(OUTPUT, 'qc/{sample}/{sample}_{end}_qc.fastq.gz'),
+               sample=IDS, end=ENDS)
 
 # combine lanes for each read direction
 rule fastq_combine:
