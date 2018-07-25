@@ -74,7 +74,8 @@ def create_yaml(fastqc, outfile):
     """
 
     if isinstance(fastqc, str) and isinstance(outfile, str):
-        sample_dict = get_fastq_dict(fastqc)
+        sample_dict = {'data_dir': fastqc}
+        sample_dict = dict(sample_dict, **get_fastq_dict(fastqc))
         with open(outfile, 'w') as f:
             yaml.dump(sample_dict, f)
 
