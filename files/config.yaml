@@ -1,5 +1,6 @@
 data_dir: data/fastq
 output_dir: output/
+logs_dir: logs/
 sample_regex: '_[0-9]*.$'
 end_denote:
   R1: forward
