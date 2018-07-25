@@ -1,2 +1,2 @@
-qc_config_in: /home/dakota/PythonModules/scRNAseqPipeline/data/fastq
-qc_config_out: /home/dakota/PythonModules/scRNAseqPipeline/files/config.yaml
+qc_config_in: <directory with sample directories>
+qc_config_out: <write path for alignment configuration>
