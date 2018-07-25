@@ -1,20 +1,36 @@
 
 # retrieve config file
 import os
+import re
 
 configfile: 'files/config.yaml'
-
 DATA_DIR = config['data_dir']
-ENDS = ['R1', 'R2']
+SAMPLE_REGEX = config['sample_regex']
+ENDS = config['end_denote']
+
+# function to link sample ids to their input directory
+def link_sample_dirs(data_dir, sample_regex):
+    id_to_dir = {}
+    sample_pattern = re.compile(sample_regex)
+    for sample_dir in os.listdir(data_dir):
+        matched = re.search(sample_pattern, sample_dir)
+        if matched is not None:
+            id = sample_dir[0:matched.span()[0]]
+            data_loc = os.path.join(data_dir, sample_dir)
+            id_to_dir[id] = data_loc
+    return id_to_dir
+
+DIRNAMES = link_sample_dirs(DATA_DIR, SAMPLE_REGEX)
+IDS = list(DIRNAMES.keys())
 
 rule all:
     input:
-        expand('output/qc/{sample}/{sample}_{end}_qc.fastq.gz', sample=config['samples'], end=ENDS)
+        expand('output/qc/{sample}/{sample}_{end}_qc.fastq.gz', sample=IDS, end=ENDS)
 
 # combine lanes for each read direction
 rule fastq_combine:
     input:
-        os.path.join(DATA_DIR, '{sample}')
+        lambda wildcards: DIRNAMES[wildcards.sample]
     output:
         # temporary because we'll aligned to filtered data
         temp('output/fastq/{sample}/{sample}_{end}.fastq.gz')
