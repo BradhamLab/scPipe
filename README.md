@@ -25,3 +25,7 @@ conda create -n multiqc pip --no-default-packages
 source activate multiqc
 pip install --upgrade --force-reinstall git+https://github.com/ewels/MultiQC.git --ignore-installed certifi
 ```
+
+You may also need to install `Cython` for some package use in the `multiqc` environment.
+
+This can be installed using the `conda install cython` command.
