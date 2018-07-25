@@ -1,7 +1,10 @@
 
 # retrieve config file
+import os
+
 configfile: 'files/config.yaml'
 
+DATA_DIR = config['data_dir']
 ENDS = ['R1', 'R2']
 
 rule all:
@@ -11,7 +14,7 @@ rule all:
 # combine lanes for each read direction
 rule fastq_combine:
     input:
-        'data/fastq/{sample}'
+        os.path.join(DATA_DIR, '{sample}')
     output:
         # temporary because we'll aligned to filtered data
         temp('output/fastq/{sample}/{sample}_{end}.fastq.gz')
@@ -32,6 +35,12 @@ rule fastp_qc:
         json='output/qc/{sample}/fastp.json'
     shell:
         '(fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} -h {output.html} -j {output.json}) 2> {log}'
+
+# Align with star
+# rule star_align:
+#
+#    shell:
+#        'STAR --genomeDir {input.genome} --readFilesIn {input.r1} {input.r2}'
 
 # Aggregate QC results with MultiQC - Not working
 #rule run_multiqc:
