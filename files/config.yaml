@@ -5,3 +5,4 @@ sample_regex: '_[0-9]*.$'
 end_denote:
   R1: forward
   R2: backward
+fastp_params: '--low_complexity_filter --low_complexity_threshold 30'
