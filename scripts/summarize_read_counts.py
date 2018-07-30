@@ -122,6 +122,16 @@ class SummarizeFastpReads(object):
         
         return None
 
+    def _get_good_bad_ugly(self, read_count):
+        """
+        Get good-bad-ugly group based on read count.
+        """
+        if read_count < self.bad_threshold:
+            return 'Bad'
+        elif read_count < self.ugly_threshold:
+            return 'Ugly'
+        return 'Good'
+
     def get_read_data(self, fastp_json, sample_name):
         """
         Get sample read data from a `fastp` json file.
@@ -140,6 +150,10 @@ class SummarizeFastpReads(object):
                 3. post.filter.total | total number of reads post qc filtering.
                 4. post.filter.length | average read length post qc filtering.
                 5. treatment | treatment applied to cell.
+                6. quality | quality of read coverage defined by threshold
+                    values. Can be either 'Good', 'Bad' or 'Ugly'.
+                7. pre.filter.total.log10 | log10 of total reads pre filtering.
+                8. post.filter.total.log10 | log10 of total reads post filtering.
         """
         sample_dict = {sample_name: {}}
         read_dict = {}
@@ -155,12 +169,15 @@ class SummarizeFastpReads(object):
         fr_tot = post_filter['total_reads']
         fr_len = np.mean([post_filter['read1_mean_length'],
                         post_filter['read2_mean_length']])
+        gbu_group = self._get_good_bad_ugly(fr_tot)
 
         treatment = self.treatment_from_sample_name(sample_name)
         key_values = zip(['pre.filter.total', 'pre.filter.length',
                           'post.filter.total', 'post.filter.length',
-                          'treatment'],
-                         [r_tot, r_len, fr_tot, fr_len, treatment])
+                          'treatment', 'quality',
+                          'pre.filter.total.log10', 'post.filter.total.log10'],
+                         [r_tot, r_len, fr_tot, fr_len, treatment, gbu_group,
+                         np.log10(r_tot), np.log10(fr_tot)])
         sample_dict[sample_name] = {x:y for x, y in key_values}
         return sample_dict
 
@@ -180,7 +197,7 @@ class SummarizeFastpReads(object):
         ax = sns.violinplot(data=self.read_df, x='treatment',
                             y='post.filter.total.log10')
         ax.set(xlabel='Treatment', ylabel='$\log_{10}($# of reads$)$',
-            title='Read Distributions per Treatment')
+               title='Read Distributions per Treatment')
         plt.legend(handles=patches)
         
         return ax
@@ -197,8 +214,7 @@ class SummarizeFastpReads(object):
         Visualize percentage of cells falling into "bad", "ugly" and "good"
         categories. 
         """
-        palette = sns.color_palette('bright')
-        red_yellow_green = [palette[2], palette[4], palette[1]]
+        red_yellow_green = ['#E06666', '#FFE599', '#93C47D']
         # red_yellow_green = ['red', 'yellow', 'green']
         reads = self.read_df['post.filter.total.log10']
         ecdf = sm.distributions.ECDF(reads)
@@ -259,6 +275,7 @@ class SummarizeFastpReads(object):
             ax.fill_between(plot_x, plot_y, facecolor=red_yellow_green[i],
                             interpolate=True, alpha=0.25)
 
+        # format y-axis tick marsk to include threshold percents.
         y_w_thresholds = sorted(np.hstack((np.arange(0, 1.2, 0.2), 
                                         np.array([percent_bad, percent_ugly]))))
         labels = ['{:.1f}%'.format(x*100) for x in y_w_thresholds]
@@ -266,6 +283,16 @@ class SummarizeFastpReads(object):
         if y_w_thresholds[bad_loc + 1] != percent_ugly and\
         (percent_ugly - percent_bad) < 0.25:
             labels[bad_loc + 1] = ''
+
+        # create legend
+        cumulative_percentages = [0, percent_bad, percent_ugly, 1]
+        patches = []
+        for i, each in enumerate(['Bad', 'Ugly', 'Good']):
+            color = red_yellow_green[i]
+            label = "{} (%={:.1f})".format(each, (cumulative_percentages[i + 1]
+                                           - cumulative_percentages[i])
+                                           * 100)
+            patches.append(mpatches.Patch(color=color, label=label))
         
         plt.yticks(y_w_thresholds, labels)
         plt.xlim((0, np.max(reads)))
@@ -274,3 +301,42 @@ class SummarizeFastpReads(object):
                title='Cumulative Distribution of Reads per Cell')
         
         return ax
+
+    def create_stack_barplot(self):
+        """
+        Visualize percentage of cells falling into 'Good', 'Bad', and 'Ugly'
+        catergories for each treatment group.
+        """
+        red_yellow_green = ['#E06666', '#FFE599', '#93C47D']
+        by_treatment = self.read_df.groupby('treatment')
+        quality_by_treatment = by_treatment['Quality'].value_counts().unstack()
+        percentages = quality_by_treatment.apply(lambda x: x / sum(x), axis=1)
+        
+        treatments = percentages.index.values
+        qualities = ['Bad', 'Ugly', 'Good']
+        width = 0.35
+        ind = np.arange(len(treatments))
+        plots = []
+        fig, ax = plt.subplots(1,1)
+        
+        for i, each in enumerate(qualities):
+            if i == 0:
+                plots.append(ax.bar(ind, percentages[each],
+                                    color=red_yellow_green[i], width=width))
+            else:
+                cum_prob = sum([percentages[x] for x in qualities[0:i]])
+                plots.append(ax.bar(ind, percentages[each],
+                                     bottom=cum_prob,
+                                     color=red_yellow_green[i], width=width))
+
+        plt.ylabel('Percentage')
+        plt.title('Quality Percentages by Treatment')
+        plt.xticks(ind, treatments)
+        plt.yticks(np.arange(0, 1.2, 0.2),
+                   ['{:.0f}%'.format(x*100) for x in np.arange(0, 1.2, 0.2)])
+        plt.legend([x[0] for x in plots], qualities,
+                   loc='upper center', bbox_to_anchor=(0.5, -0.05),
+                   fancybox=True, ncol=len(treatments))
+        plt.ylim(0, 1)
+        return ax
+
