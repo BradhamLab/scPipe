@@ -37,7 +37,7 @@ This can be installed using the `conda install cython` command.
 
 This pipeline performs the necessary operations to take single-cell RNAseq data from paired-end raw reads to a normalized expression matrix. This transformation is done using the following tools/steps.
 
-#### 1. Read Quality Control
+### 1. Read Quality Control
 
 `input`: raw reads (`.fastq`/`.fastq.gz`)<br>
 `output`: trimmed and filtered reads (`.fastq`/`.fastq.gz`)
@@ -47,7 +47,7 @@ Perform quality control using the `fastp` tool [(link)](https://github.com/OpenG
 **bioRxiv Pre-Print**<br>
 Shifu Chen, Yanqing Zhou, Yaru Chen, Jia Gu. fastp: an ultra-fast all-in-one FASTQ preprocessor. bioRxiv 274100; doi: https://doi.org/10.1101/274100
 
-#### 2. Read Alignment
+### 2. Read Alignment
 
 `input`: trimmed and filtered reads (`fastq`/`fastq.gz`)
 `output`: aligned reads (`.bam`, `.sam`)
@@ -58,18 +58,18 @@ Align filtered reads to the provided genome using `STAR`[(link)](https://github.
 Dobin, A. Davis CA, Schlesinger F, Drenkow J. Zaleski C, Jha S, Batut P, Chaisson M, Gingeras TR. STAR: ultrafast universal RNA-seq aligner.  Bioinformatics. 2013. 29. 1. pp 15-21.
 
 
-#### 3. Alignment Quality Control
+### 3. Alignment Quality Control
 
 `input`: aligned reads (`.bam`, `.sam`)
 `ouput`: filtered alignments (`.bam`, `.sam`)
 
 
-#### 4. Expression Quantification with Mapped Reads
+### 4. Expression Quantification with Mapped Reads
 
 `input`: filtered alignments (`.bam`, `.sam`)
 `output`: raw read count matrix (`.csv`)
 
-#### 5. Expression Matrix Normalization
+### 5. Expression Matrix Normalization
 
 `input`: raw read count matrix (`.csv`)
 `output`: within-sample normalized count matrix.
@@ -79,7 +79,7 @@ Normalize read counts using `SCnorm` [(link)](https://github.com/rhondabacher/SC
 **Original Paper**<br>
 Bacher R, Chu LF, Leng N, Gasch AP, Thomson JA, Stewart RM, Newton M, Kendziorski C. SCnorm: robust normalization of single-cell RNA-seq data. Nature Methods. 2017 Jun 1;14(6):584-6.
 
-#### 6. Batch Effect Removal
+### 6. Batch Effect Removal
 
 `input`: within-sample normalized count matrix.
 `output`: batched removed normalized count matrix.
