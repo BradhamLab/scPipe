@@ -275,7 +275,8 @@ class SummarizeFastpReads(object):
                title='Read Distributions per Treatment')
         plt.legend(handles=patches, loc='upper center',
                    bbox_to_anchor=(0.5, -0.1), fancybox=False,
-                   ncol=len(treatments), fontsize='x-small')
+                   ncol=len(treatments), fontsize='x-small',
+                   frameon=False, shadow=False)
         plt.gcf().subplots_adjust(bottom=0.15)
         return ax
 
@@ -412,7 +413,8 @@ class SummarizeFastpReads(object):
                    ['{:.0f}%'.format(x*100) for x in np.arange(0, 1.2, 0.2)])
         plt.legend([x[0] for x in plots], qualities,
                    loc='upper center', bbox_to_anchor=(0.5, -0.05),
-                   fancybox=False, ncol=len(treatments))
+                   fancybox=False, ncol=len(treatments),
+                   frameon=False, shadow=False)
         plt.ylim(0, 1)
         plt.gcf().subplots_adjust(bottom=0.15)
         return ax
@@ -423,7 +425,6 @@ if __name__ == "__main__":
         snakemake
     except NameError:
         snakemake_exists = False
-        snakemake = {'stop': 'yelling at me'}  # stop vscode from yelling at me
     
     if snakemake_exists:
         read_summary = SummarizeFastpReads(snakemake.input['fastp'],
