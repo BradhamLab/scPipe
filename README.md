@@ -49,7 +49,7 @@ Shifu Chen, Yanqing Zhou, Yaru Chen, Jia Gu. fastp: an ultra-fast all-in-one FAS
 
 ### 2. Read Alignment
 
-`input`: trimmed and filtered reads (`fastq`/`fastq.gz`)
+`input`: trimmed and filtered reads (`fastq`/`fastq.gz`)<br>
 `output`: aligned reads (`.bam`, `.sam`)
 
 Align filtered reads to the provided genome using `STAR`[(link)](https://github.com/alexdobin/STAR).
@@ -60,18 +60,18 @@ Dobin, A. Davis CA, Schlesinger F, Drenkow J. Zaleski C, Jha S, Batut P, Chaisso
 
 ### 3. Alignment Quality Control
 
-`input`: aligned reads (`.bam`, `.sam`)
+`input`: aligned reads (`.bam`, `.sam`)<br>
 `ouput`: filtered alignments (`.bam`, `.sam`)
 
 
 ### 4. Expression Quantification with Mapped Reads
 
-`input`: filtered alignments (`.bam`, `.sam`)
+`input`: filtered alignments (`.bam`, `.sam`)<br>
 `output`: raw read count matrix (`.csv`)
 
 ### 5. Expression Matrix Normalization
 
-`input`: raw read count matrix (`.csv`)
+`input`: raw read count matrix (`.csv`)<br>
 `output`: within-sample normalized count matrix.
 
 Normalize read counts using `SCnorm` [(link)](https://github.com/rhondabacher/SCnorm).
@@ -81,7 +81,7 @@ Bacher R, Chu LF, Leng N, Gasch AP, Thomson JA, Stewart RM, Newton M, Kendziorsk
 
 ### 6. Batch Effect Removal
 
-`input`: within-sample normalized count matrix.
+`input`: within-sample normalized count matrix.<br>
 `output`: batched removed normalized count matrix.
 
 
