@@ -25,12 +25,15 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 import matplotlib.patches as mpatches
 
+# snakemake import
+from snakemake.utils import report
+
 class SummarizeFastpReads(object):
     """
     Class to summarize output from read quality control using `fastp`.
     """
     
-    def __init__(self, output_dir, treatment_regex, bad_threshold,
+    def __init__(self, fastp_dir, output_dir, treatment_regex, bad_threshold,
                  ugly_threshold):
         """
         Class to summarize output from read quality control using `fastp`
@@ -49,20 +52,23 @@ class SummarizeFastpReads(object):
         treatment, and quality placement.
 
         Args:
-            output_dir (string): path to output directory containing `fastp`
-                output. Directory is assumed to use the following format:
+            fastp_dir (string): path to `fastp` output directory containing
+                `fastp` output. Directory is assumed to use the following
+                format:
 
-                    <output_dir>/<sample_id/>
+                    <fastp_dir>/<sample_id/>
 
                 Where a file, `fastp.json` exists within each <sample_id>
                 subdirectory.
-            treatment_regex (list, string): list of regex patterns to extract all
-                possible treatments from a sample name.
+            output_dir (string): directory where output should be written to. 
+            treatment_regex (list, string): list of regex patterns to extract
+                all possible treatments from a sample name.
             bad_threshold (int): maximum number of reads for a cell to be
                 considered as 'bad'.
             ugly_threshold (int): maximum number of reads for a cell to be
                 considered as 'ugly'.
         """
+        self.fastp_dir = fastp_dir
         self.output_dir = output_dir
         self.treatment_regex = [re.compile(x) for x in treatment_regex]
         self.bad_threshold = bad_threshold
@@ -71,6 +77,72 @@ class SummarizeFastpReads(object):
         self.log10_ugly = np.log10(ugly_threshold)
         self.read_df = self.generate_dataframe()
 
+    def snakemake_report(self):
+        """
+        Generate a SnakeMake report.
+
+        Generates an html report containing diagnostic plots for read coverage
+        quality. All images are saved to a `plots` subdirecty in the specified
+        output directory from `self.output_dir`. Finally, a `.csv` file
+        containing read summaries is written to `self.output_dir`. 
+        """
+
+        # check if output dir exists
+        if not os.path.exists(self.output_dir):
+            os.mkdir(self.output_dir)
+
+        # check if plot dir exists
+        plot_dir = os.path.join(self.output_dir, 'plots')
+        if not os.path.exists(plot_dir):
+            os.mkdir(plot_dir)
+
+        # output paths
+        csv_path = os.path.join(self.output_dir, 'read_summary.csv')
+        violin_path = os.path.join(plot_dir, 'violin.png')
+        cdf_path = os.path.join(plot_dir, 'cdf.png')
+        stacked_bar_path = os.path.join(plot_dir, 'stacked_barplot.png')
+
+        # write csv file
+        self.read_df.to_csv(csv_path)
+
+        # report loc
+        html_path = os.path.join(self.output_dir, 'report.html')
+
+        # clear any pyplot figures just in case
+        plt.cla()
+
+        # create plots
+        self.create_violin_plot()
+        plt.savefig(violin_path)
+        plt.cla()
+
+        self.create_cdf_plot()
+        plt.savefig(cdf_path)
+        plt.cla()
+
+        self.create_stack_barplot()
+        plt.savefig(stacked_bar_path)
+        plt.cla()
+  
+        rst_markup = """
+        ============================================
+        Read Summary Following Fastp Quality Control
+        ============================================
+
+        Read Counts per Treatment
+        =========================
+        .. image:: {0}
+
+        Read Coverage Quality
+        =====================
+        .. image:: {1}
+
+        Coverage Quality per Treatment
+        ==============================
+        .. image:: {2}
+        """.format(violin_path, cdf_path, stacked_bar_path)
+        report(rst_markup, html_path,
+               metadata="Author: Dakota Hawkins (dyh0110@bu.edu)")
 
     def generate_dataframe(self):
         """
@@ -94,7 +166,7 @@ class SummarizeFastpReads(object):
                 treatment: experimental treatment applied to each cell. 
         """
         all_samples = {}
-        for path, dirs, files in os.walk(self.output_dir):
+        for path, dirs, files in os.walk(self.fastp_dir):
             for each in files:
                 if each == 'fastp.json':
                     sample_name = os.path.basename(path)
@@ -191,7 +263,7 @@ class SummarizeFastpReads(object):
         sns.set(style='whitegrid')
         n_values = self.read_df['treatment'].value_counts()
         colors = sns.color_palette()
-        treatments = sorted(n_values.index.values)
+        treatments = n_values.index.values
         patches = []
         for i, each in enumerate(treatments):
             color = colors[i % len(treatments)]
@@ -201,8 +273,10 @@ class SummarizeFastpReads(object):
                             y='post.filter.total.log10')
         ax.set(xlabel='Treatment', ylabel='$\log_{10}($# of reads$)$',
                title='Read Distributions per Treatment')
-        plt.legend(handles=patches)
-        
+        plt.legend(handles=patches, loc='upper center',
+                   bbox_to_anchor=(0.5, -0.1), fancybox=False,
+                   ncol=len(treatments), fontsize='x-small')
+        plt.gcf().subplots_adjust(bottom=0.15)
         return ax
 
     @staticmethod
@@ -302,7 +376,6 @@ class SummarizeFastpReads(object):
         plt.ylim((0, 1))
         ax.set(xlabel='$\log_{10}($# of reads$)$', ylabel='Percent of Cells',
                title='Cumulative Distribution of Reads per Cell')
-        
         return ax
 
     def create_stack_barplot(self):
@@ -339,7 +412,23 @@ class SummarizeFastpReads(object):
                    ['{:.0f}%'.format(x*100) for x in np.arange(0, 1.2, 0.2)])
         plt.legend([x[0] for x in plots], qualities,
                    loc='upper center', bbox_to_anchor=(0.5, -0.05),
-                   fancybox=True, ncol=len(treatments))
+                   fancybox=False, ncol=len(treatments))
         plt.ylim(0, 1)
+        plt.gcf().subplots_adjust(bottom=0.15)
         return ax
 
+if __name__ == "__main__":
+    snakemake_exists = True
+    try:
+        snakemake
+    except NameError:
+        snakemake_exists = False
+        snakemake = {'stop': 'yelling at me'}  # stop vscode from yelling at me
+    
+    if snakemake_exists:
+        read_summary = SummarizeFastpReads(snakemake.input['fastp'],
+                                           snakemake.params['outdir'],
+                                           snakemake.params['regex'],
+                                           snakemake.params['bad'],
+                                           snakemake.params['ugly'])
+        read_summary.snakemake_report()
