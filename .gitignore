@@ -12,3 +12,6 @@ logs/*
 
 # ignore config files as they're computer specific
 config.yaml
+
+# ignore test scripts
+scripts/tests/*
