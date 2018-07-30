@@ -435,7 +435,7 @@ if __name__ == "__main__":
         snakemake_exists = False
     
     if snakemake_exists:
-        read_summary = SummarizeFastpReads(snakemake.input['fastp'],
+        read_summary = SummarizeFastpReads(snakemake.params['fastp'],
                                            snakemake.params['outdir'],
                                            snakemake.params['regex'],
                                            snakemake.params['bad'],
