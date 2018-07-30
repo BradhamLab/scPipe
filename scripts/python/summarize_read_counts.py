@@ -92,15 +92,14 @@ class SummarizeFastpReads(object):
             os.mkdir(self.output_dir)
 
         # check if plot dir exists
-        plot_dir = os.path.join(self.output_dir, 'plots')
-        if not os.path.exists(plot_dir):
-            os.mkdir(plot_dir)
+        if not os.path.exists('plots'):
+            os.mkdir('plots')
 
         # output paths
         csv_path = os.path.join(self.output_dir, 'read_summary.csv')
-        violin_path = os.path.join(plot_dir, 'violin.png')
-        cdf_path = os.path.join(plot_dir, 'cdf.png')
-        stacked_bar_path = os.path.join(plot_dir, 'stacked_barplot.png')
+        violin_path = os.path.join('plots', 'violin.png')
+        cdf_path = os.path.join('plots', 'cdf.png')
+        stacked_bar_path = os.path.join('plots', 'stacked_barplot.png')
 
         # write csv file
         self.read_df.to_csv(csv_path)
@@ -301,12 +300,16 @@ class SummarizeFastpReads(object):
 
         # reads below "bad" threshold
         bad = np.where(x < self.log10_bad)[0]
-        percent_bad = y[bad[-1]]
+        percent_bad = 0
+        if len(bad) > 0:
+            percent_bad = y[bad[-1]]
 
         # reads below "ugly" threshold, but above "bad"
         ugly = np.where((x >= self.log10_bad) &
                         (x < self.log10_ugly))[0]
-        percent_ugly = y[ugly[-1]]
+        percent_ugly = 0
+        if len(ugly) > 0: 
+            percent_ugly = y[ugly[-1]]
 
         # reads above "ugly" threshold
         good = np.where(x >= self.log10_ugly)[0]
@@ -316,42 +319,46 @@ class SummarizeFastpReads(object):
         for i, each in enumerate([bad, ugly, good]):
             plot_x = x[each]
             plot_y = y[each]
-            # bad read coverage, estimate from data to bad threshold
-            if i == 0:
-                end_x, end_y = self._interpolate_values(estimate_cdf,
-                                                        np.max(plot_x),
-                                                        self.log10_bad)
-                plot_x = np.hstack((plot_x, end_x))
-                plot_y = np.hstack((plot_y, end_y))
 
-            # ugly read coverage, estimate from bad and to ugly thresholds
-            elif i == 1:
-                start_x, start_y = self._interpolate_values(estimate_cdf,
-                                                            self.log10_bad,
-                                                            np.min(plot_x))
-                end_x, end_y = self._interpolate_values(estimate_cdf,
-                                                        np.max(plot_x),
-                                                        self.log10_ugly)
-                plot_x = np.hstack((start_x, plot_x, end_x))
-                plot_y = np.hstack((start_y, plot_y, end_y))
+            # check to see if there's anything to plot:
+            if len(plot_x) > 0:
 
-            # good reads, estimate from ugly to data 
-            else:
-                start_x, start_y = self._interpolate_values(estimate_cdf,
-                                                            self.log10_ugly,
-                                                            np.min(plot_x))
-                plot_x = np.hstack((start_x, plot_x))
-                plot_y = np.hstack((start_y, plot_y))
+                # bad read coverage, estimate from data to bad threshold
+                if i == 0:
+                    end_x, end_y = self._interpolate_values(estimate_cdf,
+                                                            np.max(plot_x),
+                                                            self.log10_bad)
+                    plot_x = np.hstack((plot_x, end_x))
+                    plot_y = np.hstack((plot_y, end_y))
 
-            # draw lines to bad and ugly thresholds 
-            if i < 2:
-                xmax = [self.log10_bad, self.log10_ugly][i] / x[-1]
-                ax.axhline(y=np.max(plot_y), xmin=0, xmax=xmax,
-                           color=red_yellow_green[i], linestyle='--')
-                                                    
-            plt.plot(plot_x, plot_y, color=red_yellow_green[i])
-            ax.fill_between(plot_x, plot_y, facecolor=red_yellow_green[i],
-                            interpolate=True, alpha=0.5)
+                # ugly read coverage, estimate from bad and to ugly thresholds
+                elif i == 1:
+                    start_x, start_y = self._interpolate_values(estimate_cdf,
+                                                                self.log10_bad,
+                                                                np.min(plot_x))
+                    end_x, end_y = self._interpolate_values(estimate_cdf,
+                                                            np.max(plot_x),
+                                                            self.log10_ugly)
+                    plot_x = np.hstack((start_x, plot_x, end_x))
+                    plot_y = np.hstack((start_y, plot_y, end_y))
+
+                # good reads, estimate from ugly to data 
+                else:
+                    start_x, start_y = self._interpolate_values(estimate_cdf,
+                                                                self.log10_ugly,
+                                                                np.min(plot_x))
+                    plot_x = np.hstack((start_x, plot_x))
+                    plot_y = np.hstack((start_y, plot_y))
+
+                # draw lines to bad and ugly thresholds 
+                if i < 2:
+                    xmax = [self.log10_bad, self.log10_ugly][i] / x[-1]
+                    ax.axhline(y=np.max(plot_y), xmin=0, xmax=xmax,
+                            color=red_yellow_green[i], linestyle='--')
+                                                        
+                plt.plot(plot_x, plot_y, color=red_yellow_green[i])
+                ax.fill_between(plot_x, plot_y, facecolor=red_yellow_green[i],
+                                interpolate=True, alpha=0.5)
 
         # format y-axis tick marsk to include threshold percents.
         y_w_thresholds = sorted(np.hstack((np.arange(0, 1.2, 0.2), 
@@ -384,13 +391,14 @@ class SummarizeFastpReads(object):
         Visualize percentage of cells falling into 'Good', 'Bad', and 'Ugly'
         catergories for each treatment group.
         """
-        red_yellow_green = ['#E06666', '#FFDC77', '#93C47D']
+        color_dict = {x:y for x, y in zip(['Bad', 'Ugly', 'Good'],\
+                                          ['#E06666', '#FFDC77', '#93C47D'])}
         by_treatment = self.read_df.groupby('treatment')
         quality_by_treatment = by_treatment['quality'].value_counts().unstack()
         percentages = quality_by_treatment.apply(lambda x: x / sum(x), axis=1)
         
         treatments = percentages.index.values
-        qualities = ['Bad', 'Ugly', 'Good']
+        qualities = quality_by_treatment.columns.values
         width = 0.35
         ind = np.arange(len(treatments))
         plots = []
@@ -399,12 +407,12 @@ class SummarizeFastpReads(object):
         for i, each in enumerate(qualities):
             if i == 0:
                 plots.append(ax.bar(ind, percentages[each],
-                                    color=red_yellow_green[i], width=width))
+                                    color=color_dict[each], width=width))
             else:
                 cum_prob = sum([percentages[x] for x in qualities[0:i]])
                 plots.append(ax.bar(ind, percentages[each],
                                      bottom=cum_prob,
-                                     color=red_yellow_green[i], width=width))
+                                     color=color_dict[each], width=width))
 
         plt.ylabel('Percentage')
         plt.title('Quality Percentages by Treatment')
