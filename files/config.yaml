@@ -6,3 +6,6 @@ end_denote:
   R1: forward
   R2: backward
 fastp_params: '--low_complexity_filter --low_complexity_threshold 30'
+treatment_regex: ['^ASW', '^Chlorate', '^DMSO', '^MK886']
+bad_threshold: 50000
+ugly_threshold: 250000

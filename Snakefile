@@ -9,6 +9,8 @@ OUTPUT = config['output_dir']
 LOGS = config['log_dir']
 SAMPLE_REGEX = config['sample_regex']
 ENDS = config['end_denote']
+GENOME_DIR = os.path.join(OUTPUT, 'star/genome')
+GTF = '/home/dakota/SequenceData/GenomeAnnotations/lv_genome_annotations.gtf'
 
 # function to link sample ids to their input directory
 def link_sample_dirs(data_dir, sample_regex):
@@ -25,10 +27,15 @@ def link_sample_dirs(data_dir, sample_regex):
 DIRNAMES = link_sample_dirs(DATA_DIR, SAMPLE_REGEX)
 IDS = list(DIRNAMES.keys())
 
+# try and set wildcards
+
 rule all:
     input:
         expand(os.path.join(OUTPUT, 'qc/{sample}/{sample}_{end}_qc.fastq.gz'),
-               sample=IDS, end=ENDS)
+               sample=IDS, end=ENDS),
+        os.path.join(OUTPUT, 'fastp_summary', 'report.html'),
+        os.path.join(OUTPUT, 'fastp_summary', 'read_summary.csv')
+
 
 # combine lanes for each read direction
 rule fastq_combine:
@@ -38,7 +45,7 @@ rule fastq_combine:
         # temporary because we'll aligned to filtered data
         temp(os.path.join(OUTPUT, 'fastq/{sample}/{sample}_{end}.fastq.gz'))
     shell:
-        'cat {input}/{wildcards.sample}*_{wildcards.end}_*.fastq.gz > {output}'
+        'cat {input}/{wildcards.sample}*_{wildcards.end}_*.fastq.gz >> {output}'
 
 # AfterQC with fastp
 rule fastp_qc:
@@ -56,9 +63,30 @@ rule fastp_qc:
         '(fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} '
         '-h {output.html} -j {output.json}) 2> {log}'
 
+# summarize `fastp` filtered reads
+rule summarize_fastp:
+    params:
+        fastp=os.path.join(OUTPUT, 'qc'),
+        outdir=os.path.join(OUTPUT, 'fastp_summary'),
+        regex=config['treatment_regex'],
+        bad=config['bad_threshold'],
+        ugly=config['ugly_threshold']
+    output:
+        os.path.join(OUTPUT, 'fastp_summary', 'report.html'),
+        os.path.join(OUTPUT, 'fastp_summary', 'read_summary.csv')
+    script:
+        'scripts/python/summarize_read_counts.py'
+
 # Align with star
-# rule star_align:
-#
+#rule star_align:
+#    input:
+#        r1=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz'),
+#        r2=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R2_qc.fastq.gz'),
+#        genome=GENOME_DIR,
+#        gtf=GTF
+#    output:
+#        genome=protected(direction(input.genome)),
+
 #    shell:
 #        'STAR --genomeDir {input.genome} --readFilesIn {input.r1} {input.r2}'
 
