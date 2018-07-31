@@ -54,13 +54,15 @@ rule fastp_qc:
         r2=os.path.join(OUTPUT, 'fastq/{sample}/{sample}_R2.fastq.gz')
     log:
         os.path.join(LOGS, 'fastp/{sample}.log')
+    params:
+        p1=config['fastp_params']
     output:
         r1=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz'),
         r2=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R2_qc.fastq.gz'),
         html=os.path.join(OUTPUT, 'qc/{sample}/fastp.html'),
         json=os.path.join(OUTPUT, 'qc/{sample}/fastp.json')
     shell:
-        '(fastp -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} '
+        '(fastp {params.p1} -i {input.r1} -I {input.r2} -o {output.r1} -O {output.r2} '
         '-h {output.html} -j {output.json}) 2> {log}'
 
 # summarize `fastp` filtered reads
