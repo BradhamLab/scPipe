@@ -29,7 +29,8 @@ def main(summary_csv, qc_dir, output_dir):
 
     for idx in summary_df.index:
         current_dir = os.path.join(qc_dir, idx)
-        new_dir = quality_dirs[summary_df.loc[idx, 'quality'].lower()]
+        new_dir = os.path.join(
+                     quality_dirs[summary_df.loc[idx, 'quality'].lower()], idx)
         if os.path.exists(current_dir):
             dir_util.copy_tree(current_dir, new_dir)
         else:

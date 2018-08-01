@@ -91,7 +91,7 @@ rule segregate_samples:
         directory(os.path.join(OUTPUT, 'segregated_qc', 'good')),
         directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly'))
     params:
-        qc_dir=os.path.join(OUTPUT, 'segregated_qc'),
+        qc_dir=os.path.join(OUTPUT, 'qc'),
         outdir=os.path.join(OUTPUT, 'segregated_qc')
     script:
         'scripts/python/segregate_good_bad_ugly.py'
