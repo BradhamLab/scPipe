@@ -97,15 +97,22 @@ class SummarizeFastpReads(object):
 
         # output paths
         csv_path = os.path.join(self.output_dir, 'read_summary.csv')
-        violin_path = os.path.join('plots', 'violin.png')
-        cdf_path = os.path.join('plots', 'cdf.png')
-        stacked_bar_path = os.path.join('plots', 'stacked_barplot.png')
+
+        # report loc
+        html_path = os.path.join(self.output_dir, 'report.html')
+
+        # plot loc
+        plot_dir = os.path.join(self.output_dir, 'plots')
+        if not os.path.exists(plot_dir):
+            os.makedirs(plot_dir)
+
+        violin_path = os.path.join(plot_dir, 'violin.png')
+        cdf_path = os.path.join(plot_dir, 'cdf.png')
+        stacked_bar_path = os.path.join(plot_dir, 'stacked_barplot.png')
 
         # write csv file
         self.read_df.to_csv(csv_path)
 
-        # report loc
-        html_path = os.path.join(self.output_dir, 'report.html')
 
         # clear any pyplot figures just in case
         plt.cla()
@@ -130,15 +137,15 @@ class SummarizeFastpReads(object):
 
         Read Counts per Treatment
         =========================
-        .. image:: {0}
+        .. image:: plots/violin.png
 
         Read Coverage Quality
         =====================
-        .. image:: {1}
+        .. image:: plots/cdf.png
 
         Coverage Quality per Treatment
         ==============================
-        .. image:: {2}
+        .. image:: plots/stacked_barplot.png
         """.format(violin_path, cdf_path, stacked_bar_path)
         report(rst_markup, html_path,
                metadata="Author: Dakota Hawkins (dyh0110@bu.edu)")
