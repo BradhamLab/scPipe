@@ -185,7 +185,6 @@ class SummarizeFastpReads(object):
                     all_samples = {**all_samples,
                                    **self.get_read_data(each, sample_name)}
         df = pd.DataFrame(all_samples).T
-        df.to_csv('test.csv')
         df['pre.filter.total.log10'] = [np.log10(x) for x in\
                                         df['pre.filter.total']]
         df['post.filter.total.log10'] = [np.log10(x) for x in \
