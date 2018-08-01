@@ -35,7 +35,8 @@ rule all:
                sample=IDS, end=ENDS),
         directory(os.path.join(OUTPUT, 'segregated_qc', 'bad')),
         directory(os.path.join(OUTPUT, 'segregated_qc', 'good')),
-        directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly'))
+        directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly')),
+        directory(os.path.join(OUTPUT, 'multiqc'))
 
 
 # combine lanes for each read direction
@@ -96,6 +97,17 @@ rule segregate_samples:
     script:
         'scripts/python/segregate_good_bad_ugly.py'
 
+# Aggregate QC results with MultiQC - Not working
+rule run_multiqc:
+    params:
+        os.path.join(OUTPUT, 'segregated_qc', 'good')
+    output:
+        directory(os.path.join(OUTPUT, 'multiqc'))
+    log:
+        os.path.join(LOGS, 'multiqc', 'multiqc.log')
+    shell:
+        '(source activate multiqc; multiqc {params} -o {output}) 2> {log}'
+
 # Align with star
 #rule star_align:
 #    input:
@@ -109,14 +121,5 @@ rule segregate_samples:
 #    shell:
 #        'STAR --genomeDir {input.genome} --readFilesIn {input.r1} {input.r2}'
 
-# Aggregate QC results with MultiQC - Not working
-#rule run_multiqc:
-#    input:
-#        'output/qc'
-#    output:
-#        'output/multiqc/multiqc_report.html'
-#    log:
-#        'logs/multiqc/multiqc.log'
-#    shell:
-#        '(source activate multiqc; multiqc {input} -o output/multiqc/) 2> {log}'
+
     
