@@ -46,7 +46,7 @@ rule fastq_combine:
         # temporary because we'll aligned to filtered data
         temp(os.path.join(OUTPUT, 'fastq/{sample}/{sample}_{end}.fastq.gz'))
     shell:
-        'cat {input}/{wildcards.sample}*_{wildcards.end}_*.fastq.gz >> {output}'
+        'cat {input}/{wildcards.sample}*{wildcards.end}*.fastq.gz >> {output}'
 
 # AfterQC with fastp
 # TODO: clean up qc dir manually
