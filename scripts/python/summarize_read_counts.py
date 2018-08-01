@@ -76,6 +76,8 @@ class SummarizeFastpReads(object):
         self.ugly_threshold = ugly_threshold
         self.log10_ugly = np.log10(ugly_threshold)
         self.read_df = self.generate_dataframe()
+        self.plot_df = self.read_df.replace([np.inf, -np.inf], np.nan)
+        self.plot_df.dropna(inplace=True)
 
     def snakemake_report(self):
         """
@@ -180,6 +182,7 @@ class SummarizeFastpReads(object):
                     all_samples = {**all_samples,
                                    **self.get_read_data(each, sample_name)}
         df = pd.DataFrame(all_samples).T
+        df.to_csv('test.csv')
         df['pre.filter.total.log10'] = [np.log10(x) for x in\
                                         df['pre.filter.total']]
         df['post.filter.total.log10'] = [np.log10(x) for x in \
@@ -252,13 +255,13 @@ class SummarizeFastpReads(object):
                         post_filter['read2_mean_length']])
         gbu_group = self._get_good_bad_ugly(fr_tot)
 
+        # avoid NaNs/infinites for plotting
+
         treatment = self.treatment_from_sample_name(sample_name)
         key_values = zip(['pre.filter.total', 'pre.filter.length',
                           'post.filter.total', 'post.filter.length',
-                          'treatment', 'quality',
-                          'pre.filter.total.log10', 'post.filter.total.log10'],
-                         [r_tot, r_len, fr_tot, fr_len, treatment, gbu_group,
-                         np.log10(r_tot), np.log10(fr_tot)])
+                          'treatment', 'quality'],
+                         [r_tot, r_len, fr_tot, fr_len, treatment, gbu_group])
         sample_dict[sample_name] = {x:y for x, y in key_values}
         return sample_dict
 
@@ -267,7 +270,7 @@ class SummarizeFastpReads(object):
         Visualize post qc log10 read distribution between treatment types.
         """ 
         sns.set(style='whitegrid')
-        n_values = self.read_df['treatment'].value_counts()
+        n_values = self.plot_df['treatment'].value_counts()
         colors = sns.color_palette()
         treatments = n_values.index.values
         patches = []
@@ -275,7 +278,8 @@ class SummarizeFastpReads(object):
             color = colors[i % len(treatments)]
             label = "{} (n={})".format(each, n_values[treatments[i]])
             patches.append(mpatches.Patch(color=color, label=label))
-        ax = sns.violinplot(data=self.read_df, x='treatment',
+        
+        ax = sns.violinplot(data=self.plot_df, x='treatment',
                             y='post.filter.total.log10')
         ax.set(xlabel='Treatment', ylabel='$\log_{10}($# of reads$)$',
                title='Read Distributions per Treatment')
@@ -299,8 +303,7 @@ class SummarizeFastpReads(object):
         categories. 
         """
         red_yellow_green = ['#E06666', '#FFDC77', '#93C47D']
-        # red_yellow_green = ['red', 'yellow', 'green']
-        reads = self.read_df['post.filter.total.log10']
+        reads = self.plot_df['post.filter.total.log10']
         ecdf = sm.distributions.ECDF(reads)
         x = np.linspace(0, max(reads), len(reads))
         y = ecdf(x)
@@ -400,7 +403,7 @@ class SummarizeFastpReads(object):
         """
         color_dict = {x:y for x, y in zip(['Bad', 'Ugly', 'Good'],\
                                           ['#E06666', '#FFDC77', '#93C47D'])}
-        by_treatment = self.read_df.groupby('treatment')
+        by_treatment = self.plot_df.groupby('treatment')
         quality_by_treatment = by_treatment['quality'].value_counts().unstack()
         percentages = quality_by_treatment.apply(lambda x: x / sum(x), axis=1)
         
