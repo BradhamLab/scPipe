@@ -1,16 +1,11 @@
 
-# retrieve config file
+# system level imports
 import os
 import re
+import subprocess as sbp
 
-configfile: 'files/config.yaml'
-DATA_DIR = config['data_dir']
-OUTPUT = config['output_dir']
-LOGS = config['log_dir']
-SAMPLE_REGEX = config['sample_regex']
-ENDS = config['end_denote']
-GENOME_DIR = os.path.join(OUTPUT, 'star/genome')
-GTF = '/home/dakota/SequenceData/GenomeAnnotations/lv_genome_annotations.gtf'
+# numerical imports
+import numpy as np
 
 # function to link sample ids to their input directory
 def link_sample_dirs(data_dir, sample_regex):
@@ -24,8 +19,52 @@ def link_sample_dirs(data_dir, sample_regex):
             id_to_dir[sample_id] = data_loc
     return id_to_dir
 
+# function to get genomeChrBinNBits parameter for STAR alignment.
+def estimate_STAR_ChrBinNbits(genome_file, read_length):
+    """
+    https://github.com/alexdobin/STAR/issues/103
+    """
+    len_call = 'grep -v ">" {} | wc | awk '.format(genome_file)\
+               + "'{print $3-$1}'"
+    n_ref_call = 'grep "^>" {} | wc -l'.format(genome_file)
+
+    return_values = [None, None]
+    for i, call in enumerate([len_call, n_ref_call]):
+        p = sbp.Popen(call, stdin=sbp.PIPE, stdout=sbp.PIPE, stderr=sbp.PIPE,
+                      shell=True)
+        output, err = p.communicate()
+        if p.returncode == 0:
+            print(output)
+            return_values[i] = int(output.strip())
+        else:
+            raise OSError(err)
+    estimate = max([int(np.log2(return_values[0] / return_values[1])),
+                    int(np.log2(read_length))])
+    return min(18, estimate)
+
+
+# retrieve config file
+configfile: 'files/config.yaml'
+
+# set global parameter values
+DATA_DIR = config['data_dir']
+OUTPUT = config['output_dir']
+LOGS = config['log_dir']
+SAMPLE_REGEX = config['sample_regex']
+ENDS = config['end_denote']
 DIRNAMES = link_sample_dirs(DATA_DIR, SAMPLE_REGEX)
 IDS = list(DIRNAMES.keys())
+
+# parameters for STAR genome index creation
+STAR_GENOME_PARAMS = config['star_genome_params']
+if config['star_est_ChrBinsNbits'] == True:
+    nbits = estimate_STAR_ChrBinNbits(config['genome_fasta'],
+                                      config['read_length'])
+    STAR_GENOME_PARAMS += ' --genomeChrBinNbits {}'.format(nbits)
+
+# ensure path to STAR genome dir exists
+if not os.path.exists(os.path.dirname(config['genome_dir'])):
+    os.makedirs(os.path.dirname(config['genome_dir']))
 
 # try and set wildcards
 
@@ -36,7 +75,8 @@ rule all:
         directory(os.path.join(OUTPUT, 'segregated_qc', 'bad')),
         directory(os.path.join(OUTPUT, 'segregated_qc', 'good')),
         directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly')),
-        directory(os.path.join(OUTPUT, 'multiqc'))
+        directory(os.path.join(OUTPUT, 'multiqc')),
+        protected(directory(os.path.join(OUTPUT, config['genome_dir'])))
 
 
 # combine lanes for each read direction
@@ -97,7 +137,7 @@ rule segregate_samples:
     script:
         'scripts/python/segregate_good_bad_ugly.py'
 
-# Aggregate QC results with MultiQC - Not working
+# Aggregate QC results with MultiQC
 rule run_multiqc:
     params:
         os.path.join(OUTPUT, 'segregated_qc', 'good')
@@ -109,17 +149,24 @@ rule run_multiqc:
         '(source activate multiqc; multiqc {params} -o {output}) 2> {log}'
 
 # Align with star
-#rule star_align:
-#    input:
-#        r1=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz'),
-#        r2=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R2_qc.fastq.gz'),
-#        genome=GENOME_DIR,
-#        gtf=GTF
-#    output:
-#        genome=protected(direction(input.genome)),
+rule star_generate_genome:
+    input:
+        gtf=config['gtf'],
+        fasta=config['genome_fasta']
+    params:
+        read_length=(config['read_length'] - 1),
+        extra=STAR_GENOME_PARAMS,
+        log=os.path.join(LOGS, 'star')
+    log:
+        os.path.join(LOGS, 'star', 'star.log')
+    output:
+        genome=protected(directory(os.path.join(OUTPUT, config['genome_dir'])))
+    shell:
+        'mkdir {output.genome}; (STAR --runMode genomeGenerate '
+        '--genomeDir {output.genome} --genomeFastaFiles {input.fasta} '
+        '--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} '
+        '--outFileNamePrefix {params.log} {params.extra}) 2> {log}'
 
-#    shell:
-#        'STAR --genomeDir {input.genome} --readFilesIn {input.r1} {input.r2}'
 
 
     
