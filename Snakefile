@@ -75,7 +75,7 @@ rule all:
         directory(os.path.join(OUTPUT, 'segregated_qc', 'bad')),
         directory(os.path.join(OUTPUT, 'segregated_qc', 'good')),
         directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly')),
-        directory(os.path.join(OUTPUT, 'multiqc')),
+        #directory(os.path.join(OUTPUT, 'multiqc')),
         protected(directory(os.path.join(OUTPUT, config['genome_dir'])))
 
 
