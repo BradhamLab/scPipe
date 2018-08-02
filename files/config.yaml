@@ -5,7 +5,14 @@ sample_regex: '_[0-9]*.$'
 end_denote:
   R1: forward
   R2: backward
-fastp_params: '--low_complexity_filter --low_complexity_threshold 30'
+fastp_params: '-y -Y 30'
 treatment_regex: ['^ASW', '^Chlorate', '^DMSO', '^MK886']
 bad_threshold: 50000
 ugly_threshold: 250000
+genome_dir: /home/dakota/SequenceData/GenomeAnnotations/star/genome_idx
+gtf: /home/dakota/SequenceData/GenomeAnnotations/lv_genome_annotations.gtf
+genome_fasta: '/home/dakota/SequenceData/Genomes/Lytechinus_variegatus_genome.fa'
+read_length: 70
+star_est_ChrBinsNbits: True
+star_genome_params: ''
+star_align_params: ''
