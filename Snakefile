@@ -122,32 +122,6 @@ rule summarize_fastp:
     script:
         'scripts/python/summarize_read_counts.py'
 
-# segregate 'good', 'bad', and 'ugly' samples
-rule segregate_samples:
-    input:
-        csv=os.path.join(OUTPUT, 'fastp_summary', 'read_summary.csv'),
-        html=os.path.join(OUTPUT, 'fastp_summary', 'report.html')
-    output:
-        directory(os.path.join(OUTPUT, 'segregated_qc', 'bad')),
-        directory(os.path.join(OUTPUT, 'segregated_qc', 'good')),
-        directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly'))
-    params:
-        qc_dir=os.path.join(OUTPUT, 'qc'),
-        outdir=os.path.join(OUTPUT, 'segregated_qc')
-    script:
-        'scripts/python/segregate_good_bad_ugly.py'
-
-# Aggregate QC results with MultiQC
-rule run_multiqc:
-    params:
-        os.path.join(OUTPUT, 'segregated_qc', 'good')
-    output:
-        directory(os.path.join(OUTPUT, 'multiqc'))
-    log:
-        os.path.join(LOGS, 'multiqc', 'multiqc.log')
-    shell:
-        '(source activate multiqc; multiqc {params} -o {output}) 2> {log}'
-
 # Align with star
 rule star_generate_genome:
     input:
@@ -167,6 +141,31 @@ rule star_generate_genome:
         '--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} '
         '--outFileNamePrefix {params.log} {params.extra}) 2> {log}'
 
+# segregate 'good', 'bad', and 'ugly' samples
+# rule segregate_samples:
+#     input:
+#         csv=os.path.join(OUTPUT, 'fastp_summary', 'read_summary.csv'),
+#         html=os.path.join(OUTPUT, 'fastp_summary', 'report.html')
+#     output:
+#         directory(os.path.join(OUTPUT, 'segregated_qc', 'bad')),
+#         directory(os.path.join(OUTPUT, 'segregated_qc', 'good')),
+#         directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly'))
+#     params:
+#         qc_dir=os.path.join(OUTPUT, 'qc'),
+#         outdir=os.path.join(OUTPUT, 'segregated_qc')
+#     script:
+#         'scripts/python/segregate_good_bad_ugly.py'
+
+# Aggregate QC results with MultiQC
+# rule run_multiqc:
+#     params:
+#         os.path.join(OUTPUT, 'segregated_qc', 'good')
+#     output:
+#         directory(os.path.join(OUTPUT, 'multiqc'))
+#     log:
+#         os.path.join(LOGS, 'multiqc', 'multiqc.log')
+#     shell:
+#         '(source activate multiqc; multiqc {params} -o {output}) 2> {log}'
 
 
     
