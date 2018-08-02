@@ -34,7 +34,6 @@ def estimate_STAR_ChrBinNbits(genome_file, read_length):
                       shell=True)
         output, err = p.communicate()
         if p.returncode == 0:
-            print(output)
             return_values[i] = int(output.strip())
         else:
             raise OSError(err)
@@ -75,7 +74,7 @@ rule all:
         directory(os.path.join(OUTPUT, 'segregated_qc', 'bad')),
         directory(os.path.join(OUTPUT, 'segregated_qc', 'good')),
         directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly')),
-        directory(os.path.join(OUTPUT, 'multiqc')),
+        #directory(os.path.join(OUTPUT, 'multiqc')),
         protected(directory(os.path.join(OUTPUT, config['genome_dir'])))
 
 
