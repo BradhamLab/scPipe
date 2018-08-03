@@ -9,6 +9,21 @@ import numpy as np
 
 # function to link sample ids to their input directory
 def link_sample_dirs(data_dir, sample_regex):
+    """
+    Link sample ids to fastq containing folders.
+
+    Links sampel ids to sample-specific folders containing raw .fastq.gz
+    folders. 
+
+    Args:
+        data_dir (string): parent directory containing all sample-specific
+            directories.
+        sample_regex (string): regex pattern to extract sample ids from
+            directory names.
+    Returns:
+        (dict, string): dictionary mapping sample ids to data directories. 
+        
+    """
     id_to_dir = {}
     sample_pattern = re.compile(sample_regex)
     for sample_dir in os.listdir(data_dir):
@@ -19,9 +34,27 @@ def link_sample_dirs(data_dir, sample_regex):
             id_to_dir[sample_id] = data_loc
     return id_to_dir
 
+
 # function to get genomeChrBinNBits parameter for STAR alignment.
 def estimate_STAR_ChrBinNbits(genome_file, read_length):
     """
+    Estimate the `ChrBinNBits` parameter for genome indexing in STAR
+
+    Estimate the `ChrBinNBits` parameter for genome indexing in STAR. Value
+    must be estimated due to memory constraints caused by the large number
+    of scaffolds present in some genomes (i.e. the LV genome). If estimation
+    is unnecessary, flag `star_est_ChrBinNbits: False` in configuration file.
+
+    Args:
+        genome_file (string): path to fasta file containing genome reference
+            sequences.
+        read_length (int): length of reads from RNAseq experiment.
+
+    Return:
+        (int) new value for scaling RAM consumption
+
+    References:
+    https://github.com/alexdobin/STAR/blob/master/doc/STARmanual.pdf (p. 7)
     https://github.com/alexdobin/STAR/issues/103
     """
     len_call = 'grep -v ">" {} | wc | awk '.format(genome_file)\
@@ -41,6 +74,24 @@ def estimate_STAR_ChrBinNbits(genome_file, read_length):
                     int(np.log2(read_length))])
     return min(18, estimate)
 
+def get_star_genome_params(config_dict):
+    """
+    Extract parameters for genome indexing in STAR.
+
+    Args:
+        config_dict (dictionary): configuration dictionary created by snakemake
+            via configfile: {file.name}
+    Returns:
+        (string): string of arguments to pass STAR.
+    """
+
+    star_genome_params = config_dict['star_genome_params']
+    if config_dict['star_est_ChrBinsNbits'] == True:
+        nbits = estimate_STAR_ChrBinNbits(config['genome_fasta'],
+                                        config['read_length'])
+        start_genome_params += ' --genomeChrBinNbits {}'.format(nbits)
+    return star_genome_params
+
 
 # retrieve config file
 configfile: 'files/config.yaml'
@@ -55,11 +106,7 @@ DIRNAMES = link_sample_dirs(DATA_DIR, SAMPLE_REGEX)
 IDS = list(DIRNAMES.keys())
 
 # parameters for STAR genome index creation
-STAR_GENOME_PARAMS = config['star_genome_params']
-if config['star_est_ChrBinsNbits'] == True:
-    nbits = estimate_STAR_ChrBinNbits(config['genome_fasta'],
-                                      config['read_length'])
-    STAR_GENOME_PARAMS += ' --genomeChrBinNbits {}'.format(nbits)
+
 
 # ensure path to STAR genome dir exists
 if not os.path.exists(os.path.dirname(config['genome_dir'])):
@@ -128,7 +175,7 @@ rule star_generate_genome:
         fasta=config['genome_fasta']
     params:
         read_length=(config['read_length'] - 1),
-        extra=STAR_GENOME_PARAMS,
+        extra=get_star_genome_params(config),
         log=os.path.join(LOGS, 'star')
     log:
         os.path.join(LOGS, 'star', 'star.log')
