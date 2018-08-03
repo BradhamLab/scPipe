@@ -35,64 +35,6 @@ def link_sample_dirs(data_dir, sample_regex):
     return id_to_dir
 
 
-# function to get genomeChrBinNBits parameter for STAR alignment.
-def estimate_STAR_ChrBinNbits(genome_file, read_length):
-    """
-    Estimate the `ChrBinNBits` parameter for genome indexing in STAR
-
-    Estimate the `ChrBinNBits` parameter for genome indexing in STAR. Value
-    must be estimated due to memory constraints caused by the large number
-    of scaffolds present in some genomes (i.e. the LV genome). If estimation
-    is unnecessary, flag `star_est_ChrBinNbits: False` in configuration file.
-
-    Args:
-        genome_file (string): path to fasta file containing genome reference
-            sequences.
-        read_length (int): length of reads from RNAseq experiment.
-
-    Return:
-        (int) new value for scaling RAM consumption
-
-    References:
-    https://github.com/alexdobin/STAR/blob/master/doc/STARmanual.pdf (p. 7)
-    https://github.com/alexdobin/STAR/issues/103
-    """
-    len_call = 'grep -v ">" {} | wc | awk '.format(genome_file)\
-               + "'{print $3-$1}'"
-    n_ref_call = 'grep "^>" {} | wc -l'.format(genome_file)
-
-    return_values = [None, None]
-    for i, call in enumerate([len_call, n_ref_call]):
-        p = sbp.Popen(call, stdin=sbp.PIPE, stdout=sbp.PIPE, stderr=sbp.PIPE,
-                      shell=True)
-        output, err = p.communicate()
-        if p.returncode == 0:
-            return_values[i] = int(output.strip())
-        else:
-            raise OSError(err)
-    estimate = max([int(np.log2(return_values[0] / return_values[1])),
-                    int(np.log2(read_length))])
-    return min(18, estimate)
-
-def get_star_genome_params(config_dict):
-    """
-    Extract parameters for genome indexing in STAR.
-
-    Args:
-        config_dict (dictionary): configuration dictionary created by snakemake
-            via configfile: {file.name}
-    Returns:
-        (string): string of arguments to pass STAR.
-    """
-
-    star_genome_params = config_dict['star_genome_params']
-    if config_dict['star_est_ChrBinsNbits'] == True:
-        nbits = estimate_STAR_ChrBinNbits(config['genome_fasta'],
-                                        config['read_length'])
-        star_genome_params += ' --genomeChrBinNbits {}'.format(nbits)
-    return star_genome_params
-
-
 # retrieve config file
 configfile: 'files/config.yaml'
 
@@ -114,6 +56,7 @@ if not os.path.exists(os.path.dirname(config['genome_dir'])):
 
 # try and set wildcards
 
+
 rule all:
     input:
         expand(os.path.join(OUTPUT, 'qc/{sample}/{sample}_{end}_qc.fastq.gz'),
@@ -122,7 +65,8 @@ rule all:
         directory(os.path.join(OUTPUT, 'segregated_qc', 'good')),
         directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly')),
         #directory(os.path.join(OUTPUT, 'multiqc')),
-        protected(directory(os.path.join(OUTPUT, config['genome_dir'])))
+        # protected(directory(os.path.join(OUTPUT, config['genome_dir']))),
+        # os.path.join(OUTPUT, 'star', '{sample}.bam')
 
 
 # combine lanes for each read direction
@@ -168,24 +112,8 @@ rule summarize_fastp:
     script:
         'scripts/python/summarize_read_counts.py'
 
-# Align with star
-rule star_generate_genome:
-    input:
-        gtf=config['gtf'],
-        fasta=config['genome_fasta']
-    params:
-        read_length=(config['read_length'] - 1),
-        extra=get_star_genome_params(config),
-        log=os.path.join(LOGS, 'star')
-    log:
-        os.path.join(LOGS, 'star', 'star.log')
-    output:
-        genome=protected(directory(os.path.join(OUTPUT, config['genome_dir'])))
-    shell:
-        'mkdir {output.genome}; (STAR --runMode genomeGenerate '
-        '--genomeDir {output.genome} --genomeFastaFiles {input.fasta} '
-        '--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} '
-        '--outFileNamePrefix {params.log} {params.extra}) 2> {log}'
+
+
 
 # segregate 'good', 'bad', and 'ugly' samples
 # rule segregate_samples:
