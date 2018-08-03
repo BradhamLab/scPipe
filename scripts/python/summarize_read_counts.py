@@ -96,10 +96,6 @@ class SummarizeFastpReads(object):
         if not os.path.exists(self.output_dir):
             os.mkdir(self.output_dir)
 
-        # check if plot dir exists
-        if not os.path.exists('plots'):
-            os.mkdir('plots')
-
         # output paths
         csv_path = os.path.join(self.output_dir, 'read_summary.csv')
 
