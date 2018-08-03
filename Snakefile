@@ -146,8 +146,8 @@ rule fastp_qc:
     params:
         p1=config['fastp_params']
     output:
-        r1=temp(os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz')),
-        r2=temp(os.path.join(OUTPUT, 'qc/{sample}/{sample}_R2_qc.fastq.gz')),
+        r1=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz'),
+        r2=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R2_qc.fastq.gz'),
         html=os.path.join(OUTPUT, 'qc/{sample}/fastp.html'),
         json=os.path.join(OUTPUT, 'qc/{sample}/fastp.json')
     shell:
