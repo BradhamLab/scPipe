@@ -89,7 +89,7 @@ def get_star_genome_params(config_dict):
     if config_dict['star_est_ChrBinsNbits'] == True:
         nbits = estimate_STAR_ChrBinNbits(config['genome_fasta'],
                                         config['read_length'])
-        start_genome_params += ' --genomeChrBinNbits {}'.format(nbits)
+        star_genome_params += ' --genomeChrBinNbits {}'.format(nbits)
     return star_genome_params
 
 
