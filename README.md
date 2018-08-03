@@ -52,7 +52,7 @@ Shifu Chen, Yanqing Zhou, Yaru Chen, Jia Gu. fastp: an ultra-fast all-in-one FAS
 `input`: trimmed and filtered reads (`fastq`/`fastq.gz`)<br>
 `output`: aligned reads (`.bam`, `.sam`)
 
-Align filtered reads to the provided genome using `STAR`[(link)](https://github.com/alexdobin/STAR).
+Align filtered reads to the provided genome using `STAR`[(link)](https://github.com/alexdobin/STAR). Sort output `.bam` files by name using `SAMTOOLS` for paired-end quantification.
 
 **Original Paper**<br>
 Dobin, A. Davis CA, Schlesinger F, Drenkow J. Zaleski C, Jha S, Batut P, Chaisson M, Gingeras TR. STAR: ultrafast universal RNA-seq aligner.  Bioinformatics. 2013. 29. 1. pp 15-21.
@@ -66,24 +66,35 @@ Dobin, A. Davis CA, Schlesinger F, Drenkow J. Zaleski C, Jha S, Batut P, Chaisso
 
 ### 4. Expression Quantification with Mapped Reads
 
+Retrieve raw read counts using `HTSeq` [(link)](https://github.com/simon-anders/htseq). 
+
 `input`: filtered alignments (`.bam`, `.sam`)<br>
 `output`: raw read count matrix (`.csv`)
+
+**Original Paper**<br>
+Anders S, Pyl PT, Huber W. HTSeq---a Python framework to work with high-throughput sequencing data. Bioinformatics. 2015 Sep 25;31(2):166-169.
 
 ### 5. Expression Matrix Normalization
 
 `input`: raw read count matrix (`.csv`)<br>
 `output`: within-sample normalized count matrix.
 
-Normalize read counts using `SCnorm` [(link)](https://github.com/rhondabacher/SCnorm).
+Normalize read counts using `SCnorm` [(link)](https://github.com/rhondabacher/SCnorm) if dropout is below 80%, otherwise use `scran` [(link)](http://bioconductor.org/packages/release/bioc/html/scran.html)
 
-**Original Paper**<br>
+**Original Papers**<br>
 Bacher R, Chu LF, Leng N, Gasch AP, Thomson JA, Stewart RM, Newton M, Kendziorski C. SCnorm: robust normalization of single-cell RNA-seq data. Nature Methods. 2017 Jun 1;14(6):584-6.
+
+Lun ATL, McCarthy DJ, Marioni JC. Pooling across cells to normalize single-cell RNA sequencing data with many zero counts. Genome Biology. 2016 Feb 1;17(75).
 
 ### 6. Batch Effect Removal
 
 `input`: within-sample normalized count matrix.<br>
 `output`: batched removed normalized count matrix.
 
+Remove batch effects using mutual nearest neighbors [(link)](http://bioconductor.org/packages/release/bioc/html/scran.html).
+
+**Orginal Paper**<br>
+Haghverdi L, Lun ATL, Mordan MD, Marioni JC. Batch effects in single-cell RNA-sequencing data are corrected by matching mutaul nearest neighbors. Nature Biotechnology. 2018. 26:421-427.
 
 
 
