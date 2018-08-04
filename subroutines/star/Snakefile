@@ -133,7 +133,7 @@ rule star_align_reads:
     # log:
     #     os.path.join(LOGS, 'star', 'star_alignment.log')
     output:
-        os.path.join(OUTPUT, 'star/alignments/{sample}.bam')
+        os.path.join(OUTPUT, 'star/alignments/{sample}/{sample}.bam')
     shell:
         'STAR --runMode alignReads --outSAMtype BAM Unsorted '
         '--readFilesCommand zcat --genomeDir {input.genome} '
