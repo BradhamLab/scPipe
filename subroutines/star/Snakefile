@@ -168,6 +168,6 @@ rule htseq_count:
         os.path.join(OUTPUT, 'counts', '{sample}.txt')
 
     shell:
-        '(htseq-count -f bam --order name {input} {params.gtf} > {output}) '
-        '2> {log}'
+        'conda activate htseq;(htseq-count -f bam --order name {input} '
+        '{params.gtf} > {output}) 2> {log}'
 
