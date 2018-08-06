@@ -125,7 +125,7 @@ rule star_align_reads:
     input:
         r1=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz'),
         r2=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R2_qc.fastq.gz'),
-        genome=os.path.join(OUTPUT, config['genome_dir'])
+        genome=os.path.join(config['genome_dir'])
     params:
         prefix=os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
                             '{sample}'),
