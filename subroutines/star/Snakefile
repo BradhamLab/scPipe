@@ -99,8 +99,7 @@ IDS = list(DIRNAMES.keys())
 
 rule all:
     input:
-        expand(os.path.join(OUTPUT, 'star', 'sorted_alignments', '{sample}',
-                            '{sample}_sorted.bam'), sample=IDS)
+        expand(os.path.join(OUTPUT, 'counts', '{sample}.txt'), sample=IDS)
 
 # Align with star
 rule star_generate_genome:
@@ -151,4 +150,24 @@ rule sort_alignments:
         os.path.join(OUTPUT, 'star', 'sorted_alignments', '{sample}',
                      '{sample}_sorted.bam')
     shell:
-        "samtools sort -n {input} -o {output}"
+        'samtools sort -n {input} -o {output}'
+
+# create count matrix
+rule htseq_count:
+    input:
+        os.path.join(OUTPUT, 'star', 'sorted_alignments', '{sample}',
+                     '{sample}_sorted.bam')
+
+    params:
+        gtf=config['gtf']
+
+    log:
+        os.path.join(LOGS, 'htseq', '{sample}.log')
+
+    output:
+        os.path.join(OUTPUT, 'counts', '{sample}.txt')
+
+    shell:
+        '(htseq-count -f bam --order name {input} {params.gtf} > {output}) '
+        '2> {log}'
+
