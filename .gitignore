@@ -2,6 +2,13 @@
 *svg
 *png
 
+# ignore data files
+*.fastq
+*.fastq.gz
+*.bam
+*.sam
+*.out
+
 # ignore snakemake stuff
 .snakemake
 
