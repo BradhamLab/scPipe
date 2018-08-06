@@ -99,8 +99,8 @@ IDS = list(DIRNAMES.keys())
 
 rule all:
     input:
-        expand(os.path.join(OUTPUT, 'star', 'alignments', '{sample}.bam'),
-               sample=IDS)
+        expand(os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
+                            '{sample}.bam'), sample=IDS)
 
 # Align with star
 rule star_generate_genome:
@@ -123,17 +123,17 @@ rule star_generate_genome:
 
 rule star_align_reads:
     input:
-        r1=expand(os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz'),
-                  sample=IDS),
+        r1=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz'),
         r2=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R2_qc.fastq.gz'),
         genome=os.path.join(OUTPUT, config['genome_dir'])
     params:
-        prefix=os.path.join(OUTPUT, 'star', 'alignments', '{sample}'),
+        prefix=os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
+                            '{sample}'),
         extra=config['star_align_params']
     # log:
     #     os.path.join(LOGS, 'star', 'star_alignment.log')
     output:
-        os.path.join(OUTPUT, 'star/alignments/{sample}/{sample}.bam')
+        os.path.join(OUTPUT, 'star', 'alignments', '{sample}', '{sample}.bam')
     shell:
         'STAR --runMode alignReads --outSAMtype BAM Unsorted '
         '--readFilesCommand zcat --genomeDir {input.genome} '
