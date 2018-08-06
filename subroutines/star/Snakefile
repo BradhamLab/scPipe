@@ -99,8 +99,8 @@ IDS = list(DIRNAMES.keys())
 
 rule all:
     input:
-        expand(os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
-                            '{sample}.bam'), sample=IDS)
+        expand(os.path.join(OUTPUT, 'star', 'sorted_alignments', '{sample}',
+                            '{sample}_sorted.bam'), sample=IDS)
 
 # Align with star
 rule star_generate_genome:
@@ -121,6 +121,7 @@ rule star_generate_genome:
         '--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} '
         '--outFileNamePrefix {params.log} {params.extra}) 2> {log}'
 
+# align reads
 rule star_align_reads:
     input:
         r1=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz'),
@@ -130,12 +131,24 @@ rule star_align_reads:
         prefix=os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
                             '{sample}'),
         extra=config['star_align_params']
-    # log:
-    #     os.path.join(LOGS, 'star', 'star_alignment.log')
+    log:
+        os.path.join(LOGS, 'star', '{sample}', 'star_alignment.log')
     output:
-        os.path.join(OUTPUT, 'star', 'alignments', '{sample}', '{sample}.bam')
+        temp(os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
+                          '{sample}Aligned.out.bam'))
     shell:
-        'STAR --runMode alignReads --outSAMtype BAM Unsorted '
+        '(STAR --runMode alignReads --outSAMtype BAM Unsorted '
         '--readFilesCommand zcat --genomeDir {input.genome} '
         '--outFileNamePrefix {params.prefix} '
-        '--readFilesIn {input.r1} {input.r2} {params.extra}'
+        '--readFilesIn {input.r1} {input.r2} {params.extra}) 2> {log}'
+
+# sort alignments b/c paired-end reads -- required by HTSeq
+rule sort_alignments:
+    input:
+        os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
+                     '{sample}Aligned.out.bam')
+    output:
+        os.path.join(OUTPUT, 'star', 'sorted_alignments', '{sample}',
+                     '{sample}_sorted.bam')
+    shell:
+        "samtools sort -n {input} -o {output}"
