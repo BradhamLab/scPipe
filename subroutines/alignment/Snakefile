@@ -101,7 +101,8 @@ rule all:
     input:
         expand(os.path.join(OUTPUT, 'counts', '{sample}.txt'), sample=IDS),
         expand(os.path.join(OUTPUT, 'raw_counts', '{sample}', '{sample}.out'),
-               sample=IDS)
+               sample=IDS),
+        os.path.join(OUTPUT, 'matrix', 'count_matrix.csv')
 
 # Align with star
 rule star_generate_genome:
@@ -135,37 +136,23 @@ rule star_align_reads:
     log:
         os.path.join(LOGS, 'star', '{sample}', 'star_alignment.log')
     output:
-        temp(os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
-                          '{sample}Aligned.out.bam'))
+        os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
+                    '{sample}Aligned.out.bam')
     shell:
         '(STAR --runMode alignReads --outSAMtype BAM Unsorted '
         '--readFilesCommand zcat --genomeDir {input.genome} '
         '--outFileNamePrefix {params.prefix} '
         '--readFilesIn {input.r1} {input.r2} {params.extra}) 2> {log}'
 
-# sort alignments b/c paired-end reads -- required by HTSeq
-rule sort_alignments:
-    input:
-        os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
-                     '{sample}Aligned.out.bam')
-    output:
-        os.path.join(OUTPUT, 'star', 'sorted_alignments', '{sample}',
-                     '{sample}_sorted.bam')
-    shell:
-        'samtools sort -n {input} -o {output}'
-
 # create count matrix
 rule run_featureCounts:
     input:
-        os.path.join(OUTPUT, 'star', 'sorted_alignments', '{sample}',
-                     '{sample}_sorted.bam')
-
+        os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
+                     '{sample}Aligned.out.bam')
     params:
         gtf=config['gtf'],
-
     log:
         os.path.join(LOGS, 'featureCounts', '{sample}.log')
-
     output:
         raw=os.path.join(OUTPUT, 'raw_counts', '{sample}', '{sample}.out'),
         final=os.path.join(OUTPUT, 'counts', '{sample}.txt')
@@ -173,4 +160,15 @@ rule run_featureCounts:
     shell:
         '(featureCounts {input} -a {params.gtf} -F GTF -p -o {output.raw}) '
         '2> {log}; cut -f1,7-8 {output.raw} > {output.final}'
+
+
+# combine counts into matrix
+rule create_count_matrix:
+    params:
+        dir=os.path.join(OUTPUT, 'counts')
+    output:
+        csv=os.path.join(OUTPUT, 'matrix', 'count_matrix.csv')
+    script:
+        "../../scripts/python/merge_read_counts.py"
+    
 
