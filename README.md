@@ -39,8 +39,8 @@ This pipeline performs the necessary operations to take single-cell RNAseq data 
 
 ### 1. Read Quality Control
 
-`input`: raw reads (`.fastq`/`.fastq.gz`)<br>
-`output`: trimmed and filtered reads (`.fastq`/`.fastq.gz`)
+`input`: raw reads (`.fastq.gz`)<br>
+`output`: trimmed and filtered reads (`.fastq.gz`)
 
 Perform quality control using the `fastp` tool [(link)](https://github.com/OpenGene/fastp) by trimming low quality regions and adapter sequences in reads, and filtering reads with too many ambiguous bases (Ns) or reads with low sequence complexity.
 
@@ -52,33 +52,34 @@ Shifu Chen, Yanqing Zhou, Yaru Chen, Jia Gu. fastp: an ultra-fast all-in-one FAS
 
 ### 2. Read Alignment
 
-`input`: trimmed and filtered reads (`fastq`/`fastq.gz`)<br>
+`input`: trimmed and filtered reads (`fastq.gz`)<br>
 `output`: aligned reads (`.bam`, `.sam`)
 
-Align filtered reads to the provided genome using `STAR`[(link)](https://github.com/alexdobin/STAR). Sort output `.bam` files by name using `SAMTOOLS` for paired-end quantification.
+Align filtered reads to the provided genome using `STAR`[(link)](https://github.com/alexdobin/STAR).
 
 **Original Paper**<br>
 <sub>
 Dobin, A. Davis CA, Schlesinger F, Drenkow J. Zaleski C, Jha S, Batut P, Chaisson M, Gingeras TR. STAR: ultrafast universal RNA-seq aligner.  Bioinformatics. 2013. 29. 1. pp 15-21.
 </sub>
 
-### 3. Alignment Quality Control
 
-`input`: aligned reads (`.bam`, `.sam`)<br>
-`ouput`: filtered alignments (`.bam`, `.sam`)
+### 3. Expression Quantification via Read Counts
 
+Retrieve fragment counts of paired end data using `featureCounts` [(link)](https://github.com/simon-anders/htseq). 
 
-### 4. Expression Quantification with Mapped Reads
-
-Retrieve raw read counts using `HTSeq` [(link)](https://github.com/simon-anders/htseq). 
-
-`input`: filtered alignments (`.bam`, `.sam`)<br>
+`input`: filtered alignments (`.bam`)<br>
 `output`: raw read count matrix (`.csv`)
 
 **Original Paper**<br>
 <sub>
-Anders S, Pyl PT, Huber W. HTSeq---a Python framework to work with high-throughput sequencing data. Bioinformatics. 2015 Sep 25;31(2):166-169.
+Liao Y, Smyth GK, Shi W. featureCounts: an efficient general purpose program for assigning sequence reads to genomic features. Bioinformatics. 2014. 30. 7. pp 923-930.
 </sub>
+
+### 4. Alignment Quality Control
+
+`input`: aligned reads (`.csv`)<br>
+`ouput`: filtered alignments (`.csv`)
+
 
 ### 5. Expression Matrix Normalization
 
