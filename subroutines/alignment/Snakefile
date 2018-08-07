@@ -99,7 +99,9 @@ IDS = list(DIRNAMES.keys())
 
 rule all:
     input:
-        expand(os.path.join(OUTPUT, 'counts', '{sample}.txt'), sample=IDS)
+        expand(os.path.join(OUTPUT, 'counts', '{sample}.txt'), sample=IDS),
+        expand(os.path.join(OUTPUT, 'raw_counts', '{sample}', '{sample}.out'),
+               sample=IDS)
 
 # Align with star
 rule star_generate_genome:
