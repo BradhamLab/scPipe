@@ -168,6 +168,6 @@ rule htseq_count:
         os.path.join(OUTPUT, 'counts', '{sample}.txt')
 
     shell:
-        'source activate htseq; (htseq-count -f bam --order name {input} '
-        '{params.gtf} > {output}) 2> {log}'
+        '(htseq-count -f bam --order name {input} {params.gtf} > {output}) '
+        '2> {log}'
 
