@@ -6,6 +6,9 @@ import re
 # numerical imports
 import numpy as np
 
+# retrieve config file
+configfile: '../../files/config.yaml'
+
 # function to link sample ids to their input directory
 def link_sample_dirs(data_dir, sample_regex):
     """
@@ -34,9 +37,6 @@ def link_sample_dirs(data_dir, sample_regex):
     return id_to_dir
 
 
-# retrieve config file
-configfile: 'files/config.yaml'
-
 # set global parameter values
 DATA_DIR = config['data_dir']
 OUTPUT = config['output_dir']
@@ -57,6 +57,9 @@ rule all:
     input:
         expand(os.path.join(OUTPUT, 'qc', '{sample}',
                             '{sample}_{end}_qc.fastq.gz'), sample=IDS, end=ENDS),
+        os.path.join(OUTPUT, 'fastp_summary', 'report.html'),
+        os.path.join(OUTPUT, 'fastp_summary', 'read_summary.csv')
+        
 
 
 # combine lanes for each read direction
