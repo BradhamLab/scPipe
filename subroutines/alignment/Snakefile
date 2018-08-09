@@ -3,6 +3,7 @@ import numpy as np
 
 configfile: '../../files/config.yaml'
 
+
 def link_sample_dirs(data_dir, sample_regex):
     """
     Link sample ids to fastq containing folders.
@@ -126,8 +127,8 @@ rule star_generate_genome:
 # align reads
 rule star_align_reads:
     input:
-        r1=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz'),
-        r2=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R2_qc.fastq.gz'),
+        r1=os.path.join(OUTPUT, 'qc', '{sample}', '{sample}_R1_qc.fastq.gz'),
+        r2=os.path.join(OUTPUT, 'qc', '{sample}', '{sample}_R2_qc.fastq.gz'),
         genome=os.path.join(config['genome_dir'])
     params:
         prefix=os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
