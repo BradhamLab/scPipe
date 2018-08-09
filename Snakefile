@@ -2,7 +2,6 @@
 # system level imports
 import os
 import re
-import subprocess as sbp
 
 # numerical imports
 import numpy as np
@@ -54,19 +53,10 @@ IDS = list(DIRNAMES.keys())
 if not os.path.exists(os.path.dirname(config['genome_dir'])):
     os.makedirs(os.path.dirname(config['genome_dir']))
 
-# try and set wildcards
-
-
 rule all:
     input:
-        expand(os.path.join(OUTPUT, 'qc/{sample}/{sample}_{end}_qc.fastq.gz'),
-               sample=IDS, end=ENDS),
-        directory(os.path.join(OUTPUT, 'segregated_qc', 'bad')),
-        directory(os.path.join(OUTPUT, 'segregated_qc', 'good')),
-        directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly')),
-        #directory(os.path.join(OUTPUT, 'multiqc')),
-        # protected(directory(os.path.join(OUTPUT, config['genome_dir']))),
-        # os.path.join(OUTPUT, 'star', '{sample}.bam')
+        expand(os.path.join(OUTPUT, 'qc', '{sample}',
+                            '{sample}_{end}_qc.fastq.gz'), sample=IDS, end=ENDS),
 
 
 # combine lanes for each read direction
@@ -74,26 +64,27 @@ rule fastq_combine:
     input:
         lambda wildcards: DIRNAMES[wildcards.sample]
     output:
-        # temporary because we'll aligned to filtered data
-        temp(os.path.join(OUTPUT, 'fastq/{sample}/{sample}_{end}.fastq.gz'))
+        # temporary because we'll align to filtered data
+        temp(os.path.join(OUTPUT, 'fastq', '{sample}',
+                          '{sample}_{end}.fastq.gz'))
     shell:
         'cat {input}/{wildcards.sample}*{wildcards.end}*.fastq.gz >> {output}'
 
+
 # AfterQC with fastp
-# TODO: clean up qc dir manually
 rule fastp_qc:
     input:
-        r1=os.path.join(OUTPUT, 'fastq/{sample}/{sample}_R1.fastq.gz'),
-        r2=os.path.join(OUTPUT, 'fastq/{sample}/{sample}_R2.fastq.gz')
+        r1=os.path.join(OUTPUT, 'fastq', '{sample}', '{sample}_R1.fastq.gz'),
+        r2=os.path.join(OUTPUT, 'fastq', '{sample}', '{sample}_R2.fastq.gz')
     log:
         os.path.join(LOGS, 'fastp/{sample}.log')
     params:
         p1=config['fastp_params']
     output:
-        r1=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R1_qc.fastq.gz'),
-        r2=os.path.join(OUTPUT, 'qc/{sample}/{sample}_R2_qc.fastq.gz'),
-        html=os.path.join(OUTPUT, 'qc/{sample}/fastp.html'),
-        json=os.path.join(OUTPUT, 'qc/{sample}/fastp.json')
+        r1=os.path.join(OUTPUT, 'qc', '{sample}', '{sample}_R1_qc.fastq.gz'),
+        r2=os.path.join(OUTPUT, 'qc', '{sample}', '{sample}_R2_qc.fastq.gz'),
+        html=os.path.join(OUTPUT, 'qc', '{sample}', 'fastp.html'),
+        json=os.path.join(OUTPUT, 'qc', '{sample}', 'fastp.json')
     shell:
         '(fastp {params.p1} -i {input.r1} -I {input.r2} -o {output.r1} -O '
         '{output.r2} -h {output.html} -j {output.json}) 2> {log}'
@@ -111,35 +102,6 @@ rule summarize_fastp:
         os.path.join(OUTPUT, 'fastp_summary', 'read_summary.csv')
     script:
         'scripts/python/summarize_read_counts.py'
-
-
-
-
-# segregate 'good', 'bad', and 'ugly' samples
-# rule segregate_samples:
-#     input:
-#         csv=os.path.join(OUTPUT, 'fastp_summary', 'read_summary.csv'),
-#         html=os.path.join(OUTPUT, 'fastp_summary', 'report.html')
-#     output:
-#         directory(os.path.join(OUTPUT, 'segregated_qc', 'bad')),
-#         directory(os.path.join(OUTPUT, 'segregated_qc', 'good')),
-#         directory(os.path.join(OUTPUT, 'segregated_qc', 'ugly'))
-#     params:
-#         qc_dir=os.path.join(OUTPUT, 'qc'),
-#         outdir=os.path.join(OUTPUT, 'segregated_qc')
-#     script:
-#         'scripts/python/segregate_good_bad_ugly.py'
-
-# Aggregate QC results with MultiQC
-# rule run_multiqc:
-#     params:
-#         os.path.join(OUTPUT, 'segregated_qc', 'good')
-#     output:
-#         directory(os.path.join(OUTPUT, 'multiqc'))
-#     log:
-#         os.path.join(LOGS, 'multiqc', 'multiqc.log')
-#     shell:
-#         '(source activate multiqc; multiqc {params} -o {output}) 2> {log}'
 
 
     
