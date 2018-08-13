@@ -65,10 +65,11 @@ Dobin, A. Davis CA, Schlesinger F, Drenkow J. Zaleski C, Jha S, Batut P, Chaisso
 
 ### 3. Expression Quantification via Read Counts
 
-Retrieve fragment counts of paired end data using `featureCounts` [(link)](https://github.com/simon-anders/htseq). 
 
 `input`: filtered alignments (`.bam`)<br>
 `output`: raw read count matrix (`.csv`)
+
+Retrieve fragment counts of paired end data using `featureCounts` [(link)](http://subread.sourceforge.net/). 
 
 **Original Paper**<br>
 <sub>
@@ -77,11 +78,10 @@ Liao Y, Smyth GK, Shi W. featureCounts: an efficient general purpose program for
 
 ### 4. Coverage Quality Control
 
-Remove genes without any counts associated with it across cells. Remove cells with greater than 90% dropout. 
-
 `input`: read counts (`.csv`)<br>
 `ouput`: filtered counts (`.csv`)
 
+Remove genes without any associated counts across all cells. Remove cells with greater than 90% dropout. 
 
 ### 5. Expression Matrix Normalization
 
