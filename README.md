@@ -75,10 +75,11 @@ Retrieve fragment counts of paired end data using `featureCounts` [(link)](https
 Liao Y, Smyth GK, Shi W. featureCounts: an efficient general purpose program for assigning sequence reads to genomic features. Bioinformatics. 2014. 30. 7. pp 923-930.
 </sub>
 
-### 4. Alignment Quality Control
+### 4. Coverage Quality Control
 
-`input`: aligned reads (`.csv`)<br>
-`ouput`: filtered alignments (`.csv`)
+Remove genes without any counts associated with it across cells. Remove cells with greater than 90% dropout. 
+`input`: read counts (`.csv`)<br>
+`ouput`: filtered counts (`.csv`)
 
 
 ### 5. Expression Matrix Normalization
