@@ -28,7 +28,8 @@ rule all:
         os.path.join(OUTPUT, 'scPipe.out'),
         os.path.join(OUTPUT, 'fastp_summary', 'report.html'),
         os.path.join(OUTPUT, 'fastp_summary', 'read_summary.csv'),
-        os.path.join(OUTPUT, 'matrix', 'count_matrix.csv')
+        os.path.join(OUTPUT, 'matrix', 'count_matrix.csv'),
+        os.path.join(OUTPUT, 'multiqc', 'multiqc_report.html')
 
 
 rule run_pipeline:
@@ -64,4 +65,15 @@ rule create_count_matrix:
         csv=os.path.join(OUTPUT, 'matrix', 'count_matrix.csv')
     script:
         'scripts/python/merge_read_counts.py'
+
+# run multiqc
+rule run_multiqc:
+    params:
+        dir=OUTPUT,
+        loc=os.path.join(OUTPUT, 'multiqc')
+    output:
+        os.path.join(OUTPUT, 'multiqc', 'multiqc_report.html')
+    shell:
+        'source activate multiqc; multiqc {params.dir} -o {params.loc} -m fastp '
+        '-m featureCounts -m star'
         
