@@ -1,93 +1,12 @@
-import subprocess as sbp
-import numpy as np
+import sys
+
+from itertools import product 
+
+# add scripts to python path for utility functions
+sys.path.append('../../scripts/python')
+import utils
 
 configfile: '../../files/config.yaml'
-
-
-def link_sample_dirs(data_dir, sample_regex):
-    """
-    Link sample ids to fastq containing folders.
-
-    Links sampel ids to sample-specific folders containing raw .fastq.gz
-    folders. 
-
-    Args:
-        data_dir (string): parent directory containing all sample-specific
-            directories.
-        sample_regex (string): regex pattern to extract sample ids from
-            directory names.
-    Returns:
-        (dict, string): dictionary mapping sample ids to data directories. 
-        
-    """
-    id_to_dir = {}
-    sample_pattern = re.compile(sample_regex)
-    for sample_dir in os.listdir(data_dir):
-        matched = re.search(sample_pattern, sample_dir)
-        if matched is not None:
-            sample_id = sample_dir[0:matched.span()[0]]
-            data_loc = os.path.join(data_dir, sample_dir)
-            id_to_dir[sample_id] = data_loc
-    return id_to_dir
-
-
-# function to get genomeChrBinNBits parameter for STAR alignment.
-def estimate_STAR_ChrBinNbits(genome_file, read_length):
-    """
-    Estimate the `ChrBinNBits` parameter for genome indexing in STAR
-
-    Estimate the `ChrBinNBits` parameter for genome indexing in STAR. Value
-    must be estimated due to memory constraints caused by the large number
-    of scaffolds present in some genomes (i.e. the LV genome). If estimation
-    is unnecessary, flag `star_est_ChrBinNbits: False` in configuration file.
-
-    Args:
-        genome_file (string): path to fasta file containing genome reference
-            sequences.
-        read_length (int): length of reads from RNAseq experiment.
-
-    Return:
-        (int) new value for scaling RAM consumption
-
-    References:
-    https://github.com/alexdobin/STAR/blob/master/doc/STARmanual.pdf (p. 7)
-    https://github.com/alexdobin/STAR/issues/103
-    """
-    len_call = 'grep -v ">" {} | wc | awk '.format(genome_file)\
-               + "'{print $3-$1}'"
-    n_ref_call = 'grep "^>" {} | wc -l'.format(genome_file)
-
-    return_values = [None, None]
-    for i, call in enumerate([len_call, n_ref_call]):
-        p = sbp.Popen(call, stdin=sbp.PIPE, stdout=sbp.PIPE, stderr=sbp.PIPE,
-                      shell=True)
-        output, err = p.communicate()
-        if p.returncode == 0:
-            return_values[i] = int(output.strip())
-        else:
-            raise OSError(err)
-    estimate = max([int(np.log2(return_values[0] / return_values[1])),
-                    int(np.log2(read_length))])
-    return min(18, estimate)
-
-
-def get_star_genome_params(config_dict):
-    """
-    Extract parameters for genome indexing in STAR.
-
-    Args:
-        config_dict (dictionary): configuration dictionary created by snakemake
-            via configfile: {file.name}
-    Returns:
-        (string): string of arguments to pass STAR.
-    """
-
-    star_genome_params = config_dict['star_genome_params']
-    if config_dict['star_est_ChrBinsNbits'] == True:
-        nbits = estimate_STAR_ChrBinNbits(config['genome_fasta'],
-                                        config['read_length'])
-        star_genome_params += ' --genomeChrBinNbits {}'.format(nbits)
-    return star_genome_params
 
 OUTPUT = config['output_dir']
 LOGS = config['log_dir']
@@ -95,15 +14,31 @@ ENDS = config['end_denote']
 READ_ENDS = sorted(list(ENDS.keys()))
 DATA_DIR = config['data_dir']
 SAMPLE_REGEX = config['sample_regex']
-DIRNAMES = link_sample_dirs(DATA_DIR, SAMPLE_REGEX)
+ENDS = config['end_denote']
+END_KEYS = sorted(list(ENDS.keys()))
+DIRNAMES = utils.link_sample_dirs(DATA_DIR, SAMPLE_REGEX)
 IDS = list(DIRNAMES.keys())
+
 
 rule all:
     input:
         expand(os.path.join(OUTPUT, 'counts', '{sample}.txt'), sample=IDS),
         expand(os.path.join(OUTPUT, 'raw_counts', '{sample}', '{sample}.out'),
-               sample=IDS),
-        os.path.join(OUTPUT, 'matrix', 'count_matrix.csv')
+               sample=IDS)
+
+# Run read quality control before alignment
+subworkflow quality_control:
+    workdir: "../qc"
+    snakefile: "../qc/Snakefile"
+
+def get_qc_output(samples, reads):
+    expected_output = []
+    for s, r in product(samples, reads):
+        expected_output.append(os.path.join(OUTPUT, 'qc', '{}'.format(s),
+                                            '{0}_{1}_qc.fastq.gz'.format(s, r)))
+    return expected_output
+qc_output = get_qc_output(IDS, ENDS)
+
 
 # Align with star
 rule star_generate_genome:
@@ -112,7 +47,7 @@ rule star_generate_genome:
         fasta=config['genome_fasta']
     params:
         read_length=(config['read_length'] - 1),
-        extra=get_star_genome_params(config),
+        extra=utils.get_star_genome_params(config),
         log=os.path.join(LOGS, 'star')
     log:
         os.path.join(LOGS, 'star', 'star_genome.log')
@@ -124,11 +59,14 @@ rule star_generate_genome:
         '--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} '
         '--outFileNamePrefix {params.log} {params.extra}) 2> {log}'
 
-# align reads
+# align reads -- > add subworkflow here
 rule star_align_reads:
     input:
-        r1=os.path.join(OUTPUT, 'qc', '{sample}', '{sample}_R1_qc.fastq.gz'),
-        r2=os.path.join(OUTPUT, 'qc', '{sample}', '{sample}_R2_qc.fastq.gz'),
+        quality_control(qc_output),
+        r1=os.path.join(OUTPUT, 'qc', '{sample}',
+                        '{sample}' + '_{}_qc.fastq.gz'.format(END_KEYS[0])),
+        r2=os.path.join(OUTPUT, 'qc', '{sample}',
+                        '{sample}' + '_{}_qc.fastq.gz'.format(END_KEYS[1])),
         genome=os.path.join(config['genome_dir'])
     params:
         prefix=os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
@@ -161,15 +99,3 @@ rule run_featureCounts:
     shell:
         '(featureCounts {input} -a {params.gtf} -F GTF -p -o {output.raw}) '
         '2> {log}; cut -f1,7-8 {output.raw} > {output.final}'
-
-
-# combine counts into matrix
-rule create_count_matrix:
-    params:
-        dir=os.path.join(OUTPUT, 'counts')
-    output:
-        csv=os.path.join(OUTPUT, 'matrix', 'count_matrix.csv')
-    script:
-        "../../scripts/python/merge_read_counts.py"
-    
-
