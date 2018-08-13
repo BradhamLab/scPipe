@@ -1,33 +1,12 @@
+# system level imports
 import os
+import sys 
+
+# add scripts to python path for utility functions
+sys.path.append('scripts/python')
+from utils import link_sample_dirs
 
 configfile: 'files/config.yaml'
-
-def link_sample_dirs(data_dir, sample_regex):
-    """
-    Link sample ids to fastq containing folders.
-
-    Links sampel ids to sample-specific folders containing raw .fastq.gz
-    folders. 
-
-    Args:
-        data_dir (string): parent directory containing all sample-specific
-            directories.
-        sample_regex (string): regex pattern to extract sample ids from
-            directory names.
-    Returns:
-        (dict, string): dictionary mapping sample ids to data directories. 
-        
-    """
-    id_to_dir = {}
-    sample_pattern = re.compile(sample_regex)
-    for sample_dir in os.listdir(data_dir):
-        matched = re.search(sample_pattern, sample_dir)
-        if matched is not None:
-            sample_id = sample_dir[0:matched.span()[0]]
-            data_loc = os.path.join(data_dir, sample_dir)
-            id_to_dir[sample_id] = data_loc
-    return id_to_dir
-
 
 SAMPLE_REGEX = config['sample_regex']
 ENDS = config['end_denote']
@@ -46,20 +25,43 @@ subworkflow read_alignment:
 
 rule all:
     input:
-        "scPipe.out"
+        os.path.join(OUTPUT, 'scPipe.out'),
+        os.path.join(OUTPUT, 'fastp_summary', 'report.html'),
+        os.path.join(OUTPUT, 'fastp_summary', 'read_summary.csv'),
+        os.path.join(OUTPUT, 'matrix', 'count_matrix.csv')
+
 
 rule run_pipeline:
     input:
-        quality_control((os.path.join(OUTPUT, 'fastp_summary',
-                                     'read_summary.csv'),
-                        expand(os.path.join(OUTPUT, 'qc', '{sample}',
-                                            '{sample}_{end}_qc.fastq.gz'),
-                               sample=IDS, end=ENDS))),
-        read_alignment((os.path.join(OUTPUT, 'matrix', 'count_matrix.csv'),
-                        expand(os.path.join(OUTPUT, 'counts', '{sample}.txt'),
-                               sample=IDS)))
+        read_alignment(expand(os.path.join(OUTPUT, 'counts', '{sample}.txt'),
+                              sample=IDS))
     output:
-        'scPipe.out'
+        os.path.join(OUTPUT, 'scPipe.out')
     shell:
-        'echo "Run complete!" > scPipe.out'
+        'echo "Run complete!" > {output}'
+
+
+# summarize `fastp` filtered reads
+rule summarize_fastp:
+    params:
+        fastp=os.path.join(OUTPUT, 'qc'),
+        outdir=os.path.join(OUTPUT, 'fastp_summary'),
+        regex=config['treatment_regex'],
+        bad=config['bad_threshold'],
+        ugly=config['ugly_threshold']
+    output:
+        os.path.join(OUTPUT, 'fastp_summary', 'report.html'),
+        os.path.join(OUTPUT, 'fastp_summary', 'read_summary.csv')
+    script:
+        'scripts/python/summarize_read_counts.py'
+
+
+# combine counts into matrix
+rule create_count_matrix:
+    params:
+        dir=os.path.join(OUTPUT, 'counts')
+    output:
+        csv=os.path.join(OUTPUT, 'matrix', 'count_matrix.csv')
+    script:
+        'scripts/python/merge_read_counts.py'
         
