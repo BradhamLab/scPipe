@@ -15,9 +15,11 @@ OUTPUT = config['output_dir']
 LOGS = config['log_dir']
 SAMPLE_REGEX = config['sample_regex']
 ENDS = config['end_denote']
+END_KEYS = sorted(list(ENDS.keys()))
 DIRNAMES = link_sample_dirs(DATA_DIR, SAMPLE_REGEX)
 IDS = list(DIRNAMES.keys())
 
+print(END_KEYS)
 
 rule all:
     input:
@@ -39,15 +41,19 @@ rule fastq_combine:
 # AfterQC with fastp
 rule fastp_qc:
     input:
-        r1=os.path.join(OUTPUT, 'fastq', '{sample}', '{sample}_R1.fastq.gz'),
-        r2=os.path.join(OUTPUT, 'fastq', '{sample}', '{sample}_R2.fastq.gz')
+        r1=os.path.join(OUTPUT, 'fastq', '{sample}',
+                        '{sample}' + '_{}.fastq.gz'.format(END_KEYS[0])),
+        r2=os.path.join(OUTPUT, 'fastq', '{sample}',
+                        '{sample}' + '_{}.fastq.gz'.format(END_KEYS[1]))
     log:
         os.path.join(LOGS, 'fastp/{sample}.log')
     params:
         p1=config['fastp_params']
     output:
-        r1=os.path.join(OUTPUT, 'qc', '{sample}', '{sample}_R1_qc.fastq.gz'),
-        r2=os.path.join(OUTPUT, 'qc', '{sample}', '{sample}_R2_qc.fastq.gz'),
+        r1=os.path.join(OUTPUT, 'qc', '{sample}',
+                        '{sample}' + '_{}_qc.fastq.gz'.format(END_KEYS[0])),
+        r2=os.path.join(OUTPUT, 'qc', '{sample}',
+                        '{sample}' + '_{}_qc.fastq.gz'.format(END_KEYS[1])),
         html=os.path.join(OUTPUT, 'qc', '{sample}', 'fastp.html'),
         json=os.path.join(OUTPUT, 'qc', '{sample}', 'fastp.json')
     shell:
