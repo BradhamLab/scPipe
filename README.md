@@ -78,6 +78,7 @@ Liao Y, Smyth GK, Shi W. featureCounts: an efficient general purpose program for
 ### 4. Coverage Quality Control
 
 Remove genes without any counts associated with it across cells. Remove cells with greater than 90% dropout. 
+
 `input`: read counts (`.csv`)<br>
 `ouput`: filtered counts (`.csv`)
 
