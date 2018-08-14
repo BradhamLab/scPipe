@@ -42,7 +42,7 @@ This pipeline performs the necessary operations to take single-cell RNAseq data 
 `input`: raw reads (`.fastq.gz`)<br>
 `output`: trimmed and filtered reads (`.fastq.gz`)
 
-Perform quality control using the `fastp` tool [(link)](https://github.com/OpenGene/fastp) by trimming low quality regions and adapter sequences in reads, and filtering reads with too many ambiguous bases (Ns) or reads with low sequence complexity.
+Perform quality control using the [fastp](https://github.com/OpenGene/fastp) by trimming low quality regions and adapter sequences in reads, and filtering reads with too many ambiguous bases (Ns) or reads with low sequence complexity.
 
 **bioRxiv Pre-Print**<br>
 <sub>
@@ -55,7 +55,7 @@ Shifu Chen, Yanqing Zhou, Yaru Chen, Jia Gu. fastp: an ultra-fast all-in-one FAS
 `input`: trimmed and filtered reads (`fastq.gz`)<br>
 `output`: aligned reads (`.bam`, `.sam`)
 
-Align filtered reads to the provided genome using `STAR`[(link)](https://github.com/alexdobin/STAR).
+Align filtered reads to the provided genome using [STAR](https://github.com/alexdobin/STAR).
 
 **Original Paper**<br>
 <sub>
@@ -69,7 +69,7 @@ Dobin, A. Davis CA, Schlesinger F, Drenkow J. Zaleski C, Jha S, Batut P, Chaisso
 `input`: filtered alignments (`.bam`)<br>
 `output`: raw read count matrix (`.csv`)
 
-Retrieve fragment counts of paired end data using `featureCounts` [(link)](http://subread.sourceforge.net/). 
+Retrieve fragment counts of paired end data using [featureCounts](http://subread.sourceforge.net/). 
 
 **Original Paper**<br>
 <sub>
@@ -88,7 +88,7 @@ Remove genes without any associated counts across all cells. Remove cells with g
 `input`: raw read count matrix (`.csv`)<br>
 `output`: within-sample normalized count matrix.
 
-Normalize read counts using `SCnorm` [(link)](https://github.com/rhondabacher/SCnorm) if dropout is below 80%, otherwise use `scran` [(link)](http://bioconductor.org/packages/release/bioc/html/scran.html)
+Normalize read counts using [SCnorm](https://github.com/rhondabacher/SCnorm) if dropout is below 80%, otherwise use [scran](http://bioconductor.org/packages/release/bioc/html/scran.html)
 
 **Original Papers**<br>
 <sub>
@@ -104,7 +104,7 @@ Lun ATL, McCarthy DJ, Marioni JC. Pooling across cells to normalize single-cell 
 `input`: within-sample normalized count matrix.<br>
 `output`: batched removed normalized count matrix.
 
-Remove batch effects using mutual nearest neighbors [(link)](http://bioconductor.org/packages/release/bioc/html/scran.html).
+Remove batch effects using mutual nearest neighbors [(MNN)](http://bioconductor.org/packages/release/bioc/html/scran.html).
 
 **Orginal Paper**<br>
 <sub>
