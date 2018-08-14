@@ -39,6 +39,29 @@ def link_ids_to_input(data_dir, sample_regex, replicate_regex=''):
             sample_dict[sample_id] = data_loc
     return sample_dict
 
+
+def assign_batch(sample_ids, batch_patterns):
+    """
+    Link samples to their associated batches.
+
+    Args:
+        sample_ids (list, string): sample ids containing a batch-identifying
+            pattern.
+        batch_patterns (list, string): regex patterns to determine which batch
+            a sample belongs to based off id.
+    Returns:
+        (dict): dictionary linking sample ids to batch ids. 
+    """
+    batch_regex = [re.compile(x) for x in batch_patterns]
+    batch_dict = {x:None for x in sample_ids}
+    for each in sample_ids:
+        for i, x in enumerate(batch_regex):
+            if x.search(each) is not None:
+                batch_dict[each] = i + 1
+    return batch_dict
+    
+
+
 # STAR helper functions
 # =====================
 
