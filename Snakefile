@@ -4,14 +4,14 @@ import sys
 
 # add scripts to python path for utility functions
 sys.path.append('scripts/python')
-from utils import link_sample_dirs
+from utils import link_ids_to_input
 
 configfile: 'files/config.yaml'
 
 SAMPLE_REGEX = config['sample_regex']
 ENDS = config['end_denote']
 DATA_DIR = config['data_dir']
-DIRNAMES = link_sample_dirs(DATA_DIR, SAMPLE_REGEX)
+DIRNAMES = link_ids_to_input(DATA_DIR, SAMPLE_REGEX)
 IDS = list(DIRNAMES.keys())
 OUTPUT = config['output_dir']
 
