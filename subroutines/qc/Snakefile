@@ -57,5 +57,6 @@ rule fastp_qc:
         html=os.path.join(OUTPUT, 'qc', '{sample}', 'fastp.html'),
         json=os.path.join(OUTPUT, 'qc', '{sample}', 'fastp.json')
     shell:
+        'source activate qc;'
         '(fastp {params.p1} -i {input.r1} -I {input.r2} -o {output.r1} -O '
         '{output.r2} -h {output.html} -j {output.json}) 2> {log}'
