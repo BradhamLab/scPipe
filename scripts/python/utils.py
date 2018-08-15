@@ -116,9 +116,9 @@ def get_star_genome_params(config_dict):
         (string): string of arguments to pass STAR.
     """
 
-    star_genome_params = config_dict['star_genome_params']
-    if config_dict['star_est_ChrBinsNbits'] == True:
-        nbits = estimate_STAR_ChrBinNbits(config_dict['genome_fasta'],
+    star_genome_params = config_dict['params']['star_genome']
+    if config_dict['flags']['star_est_ChrBinsNbits'] == True:
+        nbits = estimate_STAR_ChrBinNbits(config_dict['files']['genome_fasta'],
                                           config_dict['read_length'])
         star_genome_params += ' --genomeChrBinNbits {}'.format(nbits)
     return star_genome_params
