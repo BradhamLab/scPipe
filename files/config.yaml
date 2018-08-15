@@ -1,19 +1,36 @@
-data_dir: /home/dakota/PythonModules/scRNAseqPipeline/data/fastq
-output_dir: /home/dakota/PythonModules/scRNAseqPipeline/output/
-log_dir: /home/dakota/PythonModules/scRNAseqPipeline/logs/
-sample_regex: '_[0-9]*.$'
+dirs:
+  data: /home/dakota/PythonModules/scRNAseqPipeline/data/fastq
+  output: /home/dakota/PythonModules/scRNAseqPipeline/output/
+  log: /home/dakota/PythonModules/scRNAseqPipeline/logs/
+  genome: /home/dakota/SequenceData/GenomeAnnotations/star/
+  matrices: ['/home/dakota/PythonModules/scPipe/output/tmp']
+files:
+  gtf: /home/dakota/SequenceData/GenomeAnnotations/lv_genome_annotations.gtf
+  genome_fasta: '/home/dakota/SequenceData/Genomes/Lytechinus_variegatus_genome.fa'
 end_denote:
   R1: forward
   R2: backward
-fastp_params: '-y -Y 30'
-treatment_regex: ['^ASW', '^Chlorate', '^DMSO', '^MK886']
-batch_regex: ['-1-', '-2-', '-3-']
-bad_threshold: 50000
-ugly_threshold: 250000
-genome_dir: /home/dakota/SequenceData/GenomeAnnotations/star/
-gtf: /home/dakota/SequenceData/GenomeAnnotations/lv_genome_annotations.gtf
-genome_fasta: '/home/dakota/SequenceData/Genomes/Lytechinus_variegatus_genome.fa'
-read_length: 151
-star_est_ChrBinsNbits: True
-star_genome_params: ''
-star_align_params: '--runThreadN 2'
+thresholds:
+  bad: 50000
+  ugly: 250000
+params:
+  fastp: '-y -Y 30'
+  star_genome: ''
+  star_align: '--runThreadN 2'
+  featureCount: ''
+sample_regex:
+  id: '_[0-9]*.$'
+  batch: 
+    1: '-1-'
+    2: '-2-'
+    3: '-3-'
+  treatment: 
+    ASW: '^ASW'
+    Chlorate: '^Chlorate'
+    DMSO: '^DMSO'
+    MK886: '^MK886'
+flags:
+  star_est_ChrBinsNbits: True
+  combine_count_matrices: True
+read_length: 152
+
