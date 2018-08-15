@@ -1,7 +1,7 @@
 dirs:
-  data: /home/dakota/PythonModules/scRNAseqPipeline/data/fastq
-  output: /home/dakota/PythonModules/scRNAseqPipeline/output/
-  log: /home/dakota/PythonModules/scRNAseqPipeline/logs/
+  data: /home/dakota/PythonModules/scPipe/data/fastq
+  output: /home/dakota/PythonModules/scPipe/output/
+  log: /home/dakota/PythonModules/scPipe/logs/
   genome: /home/dakota/SequenceData/GenomeAnnotations/star/
   matrices: ['/home/dakota/PythonModules/scPipe/output/tmp']
 files:
