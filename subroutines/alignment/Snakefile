@@ -8,23 +8,18 @@ import utils
 
 configfile: '../../files/config.yaml'
 
-OUTPUT = config['output_dir']
-LOGS = config['log_dir']
-ENDS = config['end_denote']
-READ_ENDS = sorted(list(ENDS.keys()))
-DATA_DIR = config['data_dir']
-SAMPLE_REGEX = config['sample_regex']
-ENDS = config['end_denote']
-END_KEYS = sorted(list(ENDS.keys()))
-DIRNAMES = utils.link_ids_to_input(DATA_DIR, SAMPLE_REGEX)
+END_KEYS = sorted(list(config['end_denote'].keys()))
+DIRNAMES = utils.link_ids_to_input(config['dirs']['data'],
+                                   config['sample_regex']['id'])
 IDS = list(DIRNAMES.keys())
 
 
 rule all:
     input:
-        expand(os.path.join(OUTPUT, 'counts', '{sample}.txt'), sample=IDS),
-        expand(os.path.join(OUTPUT, 'raw_counts', '{sample}', '{sample}.out'),
-               sample=IDS)
+        expand(os.path.join(config['dirs']['output'], 'counts', '{sample}.txt'),
+               sample=IDS),
+        expand(os.path.join(config['dirs']['output'], 'raw_counts', '{sample}',
+                            '{sample}.out'), sample=IDS)
 
 # Run read quality control before alignment
 subworkflow quality_control:
@@ -34,48 +29,49 @@ subworkflow quality_control:
 def get_qc_output(samples, reads):
     expected_output = []
     for s, r in product(samples, reads):
-        expected_output.append(os.path.join(OUTPUT, 'qc', '{}'.format(s),
+        expected_output.append(os.path.join(config['dirs']['output'], 'qc', s,
                                             '{0}_{1}_qc.fastq.gz'.format(s, r)))
     return expected_output
-qc_output = get_qc_output(IDS, ENDS)
 
 
 # Align with star
 rule star_generate_genome:
     input:
-        gtf=config['gtf'],
-        fasta=config['genome_fasta']
+        gtf=config['files']['gtf'],
+        fasta=config['files']['genome_fasta']
     params:
         read_length=(config['read_length'] - 1),
         extra=utils.get_star_genome_params(config),
-        log=os.path.join(LOGS, 'star')
+        log=os.path.join(config['dirs']['log'], 'star')
     log:
-        os.path.join(LOGS, 'star', 'star_genome.log')
+        os.path.join(config['dirs']['log'], 'star', 'star_genome.log')
     output:
-        genome=protected(directory(os.path.join(OUTPUT, config['genome_dir'])))
+        genome=protected(directory(os.path.join(config['dirs']['output'],
+                                   config['dirs']['genome'])))
     shell:
         'mkdir {output.genome}; (STAR --runMode genomeGenerate '
         '--genomeDir {output.genome} --genomeFastaFiles {input.fasta} '
         '--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} '
         '--outFileNamePrefix {params.log} {params.extra}) 2> {log}'
 
-# align reads -- > add subworkflow here
+# align reads
 rule star_align_reads:
     input:
-        quality_control(qc_output),
-        r1=os.path.join(OUTPUT, 'qc', '{sample}',
+        quality_control(get_qc_output(IDS, END_KEYS)),
+        r1=os.path.join(config['dirs']['output'], 'qc', '{sample}',
                         '{sample}' + '_{}_qc.fastq.gz'.format(END_KEYS[0])),
-        r2=os.path.join(OUTPUT, 'qc', '{sample}',
+        r2=os.path.join(config['dirs']['output'], 'qc', '{sample}',
                         '{sample}' + '_{}_qc.fastq.gz'.format(END_KEYS[1])),
-        genome=os.path.join(config['genome_dir'])
+        genome=os.path.join(config['dirs']['genome'])
     params:
-        prefix=os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
-                            '{sample}'),
-        extra=config['star_align_params']
+        prefix=os.path.join(config['dirs']['output'], 'star', 'alignments',
+                            '{sample}', '{sample}'),
+        extra=config['params']['star_align']
     log:
-        os.path.join(LOGS, 'star', '{sample}', 'star_alignment.log')
+        os.path.join(config['dirs']['log'], 'star', '{sample}',
+                     'star_alignment.log')
     output:
-        os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
+        os.path.join(config['dirs']['output'], 'star', 'alignments', '{sample}',
                     '{sample}Aligned.out.bam')
     shell:
         '(STAR --runMode alignReads --outSAMtype BAM Unsorted '
@@ -86,16 +82,18 @@ rule star_align_reads:
 # create count matrix
 rule run_featureCounts:
     input:
-        os.path.join(OUTPUT, 'star', 'alignments', '{sample}',
+        os.path.join(config['dirs']['output'], 'star', 'alignments', '{sample}',
                      '{sample}Aligned.out.bam')
     params:
-        gtf=config['gtf'],
+        gtf=config['files']['gtf'],
+        extra=config['params']['featureCount']
     log:
-        os.path.join(LOGS, 'featureCounts', '{sample}.log')
+        os.path.join(config['dirs']['log'], 'featureCounts', '{sample}.log')
     output:
-        raw=os.path.join(OUTPUT, 'raw_counts', '{sample}', '{sample}.out'),
-        final=os.path.join(OUTPUT, 'counts', '{sample}.txt')
+        raw=os.path.join(config['dirs']['output'], 'raw_counts', '{sample}',
+                         '{sample}.out'),
+        final=os.path.join(config['dirs']['output'], 'counts', '{sample}.txt')
 
     shell:
-        '(featureCounts {input} -a {params.gtf} -F GTF -p -o {output.raw}) '
-        '2> {log}; cut -f1,7-8 {output.raw} > {output.final}'
+        '(featureCounts {input} -a {params.gtf} -F GTF -p -o {output.raw} '
+        '{params.extra}) 2> {log}; cut -f1,7-8 {output.raw} > {output.final}'

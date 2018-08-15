@@ -10,21 +10,14 @@ from utils import link_ids_to_input
 configfile: '../../files/config.yaml'
 
 # set global parameter values
-DATA_DIR = config['data_dir']
-OUTPUT = config['output_dir']
-LOGS = config['log_dir']
-SAMPLE_REGEX = config['sample_regex']
-ENDS = config['end_denote']
-END_KEYS = sorted(list(ENDS.keys()))
-DIRNAMES = link_ids_to_input(DATA_DIR, SAMPLE_REGEX)
-IDS = list(DIRNAMES.keys())
-
-print(END_KEYS)
-
+END_KEYS = sorted(list(config['end_denote'].keys()))
+DIRNAMES = link_ids_to_input(config['dirs']['data'],
+                             config['sample_regex']['id'])
 rule all:
     input:
-        expand(os.path.join(OUTPUT, 'qc', '{sample}',
-                            '{sample}_{end}_qc.fastq.gz'), sample=IDS, end=ENDS)
+        expand(os.path.join(config['dirs']['output'], 'qc', '{sample}',
+                            '{sample}_{end}_qc.fastq.gz'),
+               sample=list(DIRNAMES.keys()), end=config['end_denote'])
         
 # combine lanes for each read direction
 rule fastq_combine:
@@ -32,7 +25,7 @@ rule fastq_combine:
         lambda wildcards: DIRNAMES[wildcards.sample]
     output:
         # temporary because we'll align to filtered data
-        temp(os.path.join(OUTPUT, 'fastq', '{sample}',
+        temp(os.path.join(config['dirs']['output'], 'fastq', '{sample}',
                           '{sample}_{end}.fastq.gz'))
     shell:
         'cat {input}/{wildcards.sample}*{wildcards.end}*.fastq.gz >> {output}'
@@ -41,21 +34,23 @@ rule fastq_combine:
 # AfterQC with fastp
 rule fastp_qc:
     input:
-        r1=os.path.join(OUTPUT, 'fastq', '{sample}',
+        r1=os.path.join(config['dirs']['output'], 'fastq', '{sample}',
                         '{sample}' + '_{}.fastq.gz'.format(END_KEYS[0])),
-        r2=os.path.join(OUTPUT, 'fastq', '{sample}',
+        r2=os.path.join(config['dirs']['output'], 'fastq', '{sample}',
                         '{sample}' + '_{}.fastq.gz'.format(END_KEYS[1]))
     log:
-        os.path.join(LOGS, 'fastp/{sample}.log')
+        os.path.join(config['dirs']['log'], 'fastp/{sample}.log')
     params:
-        p1=config['fastp_params']
+        p1=config['params']['fastp']
     output:
-        r1=os.path.join(OUTPUT, 'qc', '{sample}',
+        r1=os.path.join(config['dirs']['output'], 'qc', '{sample}',
                         '{sample}' + '_{}_qc.fastq.gz'.format(END_KEYS[0])),
-        r2=os.path.join(OUTPUT, 'qc', '{sample}',
+        r2=os.path.join(config['dirs']['output'], 'qc', '{sample}',
                         '{sample}' + '_{}_qc.fastq.gz'.format(END_KEYS[1])),
-        html=os.path.join(OUTPUT, 'qc', '{sample}', 'fastp.html'),
-        json=os.path.join(OUTPUT, 'qc', '{sample}', 'fastp.json')
+        html=os.path.join(config['dirs']['output'], 'qc', '{sample}',
+                          'fastp.html'),
+        json=os.path.join(config['dirs']['output'], 'qc', '{sample}',
+                          'fastp.json')
     shell:
         'source activate qc;'
         '(fastp {params.p1} -i {input.r1} -I {input.r2} -o {output.r1} -O '
