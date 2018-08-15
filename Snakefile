@@ -20,12 +20,12 @@ subworkflow read_alignment:
 
 rule all:
     input:
-        # os.path.join(config['dirs']['output'], 'matrix', 'batch_matrix.csv')
-        os.path.join(config['dirs']['output'], 'scPipe.out'),
-        os.path.join(config['dirs']['output'], 'fastp_summary', 'report.html'),
-        os.path.join(config['dirs']['output'], 'fastp_summary', 'read_summary.csv'),
-        os.path.join(config['dirs']['output'], 'matrix', 'count_matrix.csv'),
-        os.path.join(config['dirs']['output'], 'multiqc', 'multiqc_report.html')
+        os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
+        # os.path.join(config['dirs']['output'], 'scPipe.out'),
+        # os.path.join(config['dirs']['output'], 'fastp_summary', 'report.html'),
+        # os.path.join(config['dirs']['output'], 'fastp_summary', 'read_summary.csv'),
+        # os.path.join(config['dirs']['output'], 'matrix', 'count_matrix.csv'),
+        # os.path.join(config['dirs']['output'], 'multiqc', 'multiqc_report.html')
 
 
 rule run_pipeline:
@@ -78,10 +78,11 @@ rule create_metadata:
     input:
         csv=os.path.join(config['dirs']['output'], 'matrix', 'count_matrix.csv')
     params:
-        regex=config['sample_regex']['batch']
+        regex=config['sample_regex'],
+        run_id=config['dataset']['id']
     output:
-        csv=os.path.join(config['dirs']['output'], 'matrix', 'batch_matrix.csv')
+        csv=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
     script:
-        'scripts/python/add_batch_data.py'
+        'scripts/python/sample_metadata.py'
 
         
