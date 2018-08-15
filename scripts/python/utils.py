@@ -40,27 +40,27 @@ def link_ids_to_input(data_dir, sample_regex, replicate_regex=''):
     return sample_dict
 
 
-def assign_batch(sample_ids, batch_patterns):
+def data_from_sample_name(sample_ids, regex_patterns):
     """
-    Link samples to their associated batches.
+    Extract meta-data about samples from their sample id.
 
     Args:
         sample_ids (list, string): sample ids containing a batch-identifying
             pattern.
-        batch_patterns (list, string): regex patterns to determine which batch
-            a sample belongs to based off id.
+        regex_patterns (dict): dictionary of regex patterns, where keys are
+            the meta-data value and values are the matching regex patterns (e.g.
+            {'Chlorate': '^Chlorate'})
     Returns:
-        (dict): dictionary linking sample ids to batch ids. 
+        (dict): dictionary linking sample ids to meta-data values. 
     """
-    batch_regex = [re.compile(x) for x in batch_patterns]
-    batch_dict = {x:None for x in sample_ids}
+    data_regex = {k:re.compile(v) for k, v in regex_patterns.items()}
+    sample_dict = {x:None for x in sample_ids}
     for each in sample_ids:
-        for i, x in enumerate(batch_regex):
-            if x.search(each) is not None:
-                batch_dict[each] = i + 1
-    return batch_dict
-    
-
+        for k, v in data_regex.items():
+            if v.search(each) is not None:
+                sample_dict[each] = k
+    return sample_dict
+  
 
 # STAR helper functions
 # =====================
