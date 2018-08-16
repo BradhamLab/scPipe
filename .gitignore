@@ -22,3 +22,6 @@ config.yaml
 
 # ignore test scripts
 scripts/tests/*
+
+# ignore __pycache__
+*__pycache__

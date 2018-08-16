@@ -1,10 +1,24 @@
+"""
+Utility functions for the scPipe pipeline. 
+
+Author: Dakota Hawkins
+Date: August 16, 2018
+"""
+
 import os
 import re
 import numpy as np
 import subprocess as sbp
+import yaml
 
 # General helper functions
 # ========================
+
+def configure_run(config_dict):
+    """Parse a run-specific configuration file."""
+    with open(config_dict['config'], 'r') as f:
+        config = yaml.load(f)
+    return config
 
 def link_ids_to_input(data_dir, sample_regex, replicate_regex=''):
     """
@@ -38,6 +52,29 @@ def link_ids_to_input(data_dir, sample_regex, replicate_regex=''):
             data_loc = os.path.join(data_dir, sample_data)
             sample_dict[sample_id] = data_loc
     return sample_dict
+
+
+def data_from_sample_name(sample_ids, regex_patterns):
+    """
+    Extract meta-data about samples from their sample id.
+
+    Args:
+        sample_ids (list, string): sample ids containing a batch-identifying
+            pattern.
+        regex_patterns (dict): dictionary of regex patterns, where keys are
+            the meta-data value and values are the matching regex patterns (e.g.
+            {'Chlorate': '^Chlorate'})
+    Returns:
+        (dict): dictionary linking sample ids to meta-data values. 
+    """
+    data_regex = {k:re.compile(v) for k, v in regex_patterns.items()}
+    sample_dict = {x:None for x in sample_ids}
+    for each in sample_ids:
+        for k, v in data_regex.items():
+            if v.search(each) is not None:
+                sample_dict[each] = k
+    return sample_dict
+  
 
 # STAR helper functions
 # =====================
@@ -93,9 +130,9 @@ def get_star_genome_params(config_dict):
         (string): string of arguments to pass STAR.
     """
 
-    star_genome_params = config_dict['star_genome_params']
-    if config_dict['star_est_ChrBinsNbits'] == True:
-        nbits = estimate_STAR_ChrBinNbits(config_dict['genome_fasta'],
-                                          config_dict['read_length'])
+    star_genome_params = config_dict['params']['star_genome']
+    if config_dict['flags']['star_est_ChrBinsNbits'] == True:
+        nbits = estimate_STAR_ChrBinNbits(config_dict['files']['genome_fasta'],
+                                          config_dict['dataset']['read_length'])
         star_genome_params += ' --genomeChrBinNbits {}'.format(nbits)
     return star_genome_params
