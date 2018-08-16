@@ -4,12 +4,16 @@ import sys
 
 # add scripts to python path for utility functions
 sys.path.append('scripts/python')
-from utils import link_ids_to_input
+import utils
 
+# run configuration
 configfile: 'files/config.yaml'
+config = utils.configure_run(config)
+
+
 DATA_DIR = config['dirs']['data']
-DIRNAMES = link_ids_to_input(config['dirs']['data'],
-                             config['sample_regex']['id'])
+DIRNAMES = utils.link_ids_to_input(config['dirs']['data'],
+                                   config['sample_regex']['id'])
 IDS = list(DIRNAMES.keys())
 
 
@@ -74,6 +78,7 @@ rule run_multiqc:
         'source activate multiqc; multiqc {params.dir} -o {params.loc} -m fastp '
         '-m featureCounts -m star'
 
+# extract sample metadata from sample ids
 rule create_metadata:
     input:
         csv=os.path.join(config['dirs']['output'], 'matrix', 'count_matrix.csv')
@@ -84,5 +89,18 @@ rule create_metadata:
         csv=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
     script:
         'scripts/python/sample_metadata.py'
+
+#combine count matrices and metadata if flagged. aka some hacky bullshit
+# rule combine_data:
+#     params:
+#         flag=config['combine_data'],
+#         dirs=config['dirs']['matrices']
+#     output:
+#         directory(os.path.join(config['dirs']['output'], 'combined'))\
+#         if config['combine_data'] else temp('combined.out')
+#     script:
+#         'scripts/R/combine_and_process_data.R'
+
+
 
         

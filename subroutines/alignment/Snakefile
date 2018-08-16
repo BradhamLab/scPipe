@@ -7,6 +7,7 @@ sys.path.append('../../scripts/python')
 import utils
 
 configfile: '../../files/config.yaml'
+config = utils.configure_run(config)
 
 END_KEYS = sorted(list(config['end_denote'].keys()))
 DIRNAMES = utils.link_ids_to_input(config['dirs']['data'],

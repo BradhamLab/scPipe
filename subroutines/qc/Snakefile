@@ -4,10 +4,11 @@ import sys
 
 # add scripts to python path for utility functions
 sys.path.append('../../scripts/python')
-from utils import link_ids_to_input
+import utils
 
 # retrieve config file
 configfile: '../../files/config.yaml'
+config = utils.configure_run(config)
 
 # set global parameter values
 END_KEYS = sorted(list(config['end_denote'].keys()))
