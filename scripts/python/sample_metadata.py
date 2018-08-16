@@ -1,5 +1,10 @@
 """
 Create a csv containing metadata for each sample .
+
+Extracts data from sample ids via user provided regex pattern matching.
+
+Author: Dakota Hawkins
+Date: August 16, 2018
 """
 import sys
 import os

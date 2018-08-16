@@ -1,10 +1,24 @@
+"""
+Utility functions for the scPipe pipeline. 
+
+Author: Dakota Hawkins
+Date: August 16, 2018
+"""
+
 import os
 import re
 import numpy as np
 import subprocess as sbp
+import yaml
 
 # General helper functions
 # ========================
+
+def configure_run(config_dict):
+    """Parse a run-specific configuration file."""
+    with open(config_dict['config'], 'r') as f:
+        config = yaml.load(f)
+    return config
 
 def link_ids_to_input(data_dir, sample_regex, replicate_regex=''):
     """

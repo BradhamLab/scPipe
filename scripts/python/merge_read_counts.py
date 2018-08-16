@@ -1,3 +1,11 @@
+"""
+Merge sample count files into a count matrix with genes as rows and samples as
+columns.
+
+Author: Dakota Hawkins
+Date: August 16, 2018
+"""
+
 import os
 
 import pandas as pd
