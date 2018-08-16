@@ -14,7 +14,8 @@ import numpy as np
 
 def merge_counts(count_dir):
     """
-    Merge HTseq output from several sample files into a single dataframe.
+    Merge featureCounts output from several sample files into a
+    single dataframe.
 
     Args:
         count_dir (string): path to directory containing HTSeq output. Files
