@@ -24,7 +24,7 @@ subworkflow read_alignment:
 
 rule all:
     input:
-        os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
+        os.path.join(config['dirs']['output'], ('combined.out'))
         # os.path.join(config['dirs']['output'], 'scPipe.out'),
         # os.path.join(config['dirs']['output'], 'fastp_summary', 'report.html'),
         # os.path.join(config['dirs']['output'], 'fastp_summary', 'read_summary.csv'),
@@ -70,10 +70,10 @@ rule create_count_matrix:
 # run multiqc
 rule run_multiqc:
     params:
-        dir=config['dirs']['output'],
-        loc=os.path.join(config['dirs']['output'], 'multiqc')
+       dir=config['dirs']['output'],
+       loc=os.path.join(config['dirs']['output'], 'multiqc')
     output:
-        os.path.join(config['dirs']['output'], 'multiqc', 'multiqc_report.html')
+       os.path.join(config['dirs']['output'], 'multiqc', 'multiqc_report.html')
     shell:
         'source activate multiqc; multiqc {params.dir} -o {params.loc} -m fastp '
         '-m featureCounts -m star'
@@ -90,16 +90,21 @@ rule create_metadata:
     script:
         'scripts/python/sample_metadata.py'
 
-#combine count matrices and metadata if flagged. aka some hacky bullshit
-# rule combine_data:
-#     params:
-#         flag=config['combine_data'],
-#         dirs=config['dirs']['matrices']
-#     output:
-#         directory(os.path.join(config['dirs']['output'], 'combined'))\
-#         if config['combine_data'] else temp('combined.out')
-#     script:
-#         'scripts/R/combine_and_process_data.R'
+# combine count matrices and metadata between datasets if flagged.
+# aka some hacky bullshit where we re-write count matrices and metadata
+# with combined data sources so we can pretend Snakemake is dynamic
+rule combine_data:
+    input:
+        cmat=os.path.join(config['dirs']['output'], 'matrix',
+                          'count_matrix.csv'),
+        meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
+    params:
+        flag=config['flags']['combine_data'],
+        dirs=config['dirs']['matrices']
+    output:
+        out_file=os.path.join(config['dirs']['output'], ('combined.out'))
+    script:
+        'scripts/python/combine_datasets.py'
 
 
 
