@@ -48,5 +48,6 @@ if __name__ == "__main__":
         metadata = extract_sample_data(matrix.columns.values,
                                        snakemake.params['regex'])
         metadata['run.id'] = snakemake.params['run_id']
+        metadata = metadata[sorted(columns)]
         metadata.to_csv(snakemake.output['csv'])
         
