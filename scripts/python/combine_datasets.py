@@ -142,7 +142,7 @@ def combine_count_data(count_matrices):
 def combine_meta_data(meta_matrices):
     """Combine meta matrices"""
 
-    return pd.concat(meta_matrices, axis=1, sort=True)
+    return pd.concat(meta_matrices, axis=0, sort=True)
 
 if __name__ == "__main__":
     snakemake_exists = True
