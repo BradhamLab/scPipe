@@ -135,8 +135,8 @@ def combine_count_data(count_matrices):
                                                     how='outer',
                                                     left_index=True,
                                                     right_index=True)
-    count_matrices[0].fillna(0)
-    return count_matrices[0]
+    
+    return count_matrices[0].fillna(0, inplace=True)
 
 
 def combine_meta_data(meta_matrices):
