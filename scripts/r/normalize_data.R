@@ -46,8 +46,7 @@ normalize_data <- function(count_matrix, metadata, cluster=FALSE,
                                     max.size=max_size, assay.type='logcounts')
     max_size = size_step*floor(min(table(clusters))/size_step)
   }
-
-  sce <- scran::computeSumFactors(sce, size=seq(size_step, max_size, size_step),
+  sce <- scran::computeSumFactors(sce, size=seq(20, max_size, size_step),
                                   cluster=clusters, assay.type='counts')
   norm <- scater::normalizeSCE(sce, exprs_values='counts',
                                return_norm_as_exprs=True)
