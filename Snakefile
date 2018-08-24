@@ -24,7 +24,21 @@ subworkflow read_alignment:
 
 rule all:
     input:
-        os.path.join(config['dirs']['output'], ('combined.out'))
+        mat=os.path.join(config['dirs']['output'], 'final',
+                         'imputed_log_matrix.csv'),
+        plot=os.path.join(config['dirs']['output'], 'plots',
+                          'normalized_heatmap.png'),
+        imputed_plot=os.path.join(config['dirs']['output'], 'plots',
+                                  'imputed_heatmap.png')
+        # cmat=os.path.join(config['dirs']['output'], 'final',
+        #                   'normalized_log_matrix.csv'),
+        # meta=os.path.join(config['dirs']['output'], 'final',
+        #                   'metadata.csv'),
+        # plot_dir=directory(os.path.join(config['dirs']['output'], 'plots'))
+        # os.path.join(config['dirs']['output'], 'matrix',
+        #              'filtered_count_matrix.csv'),
+        # os.path.join(config['dirs']['output'], 'metadata',
+        #              'filtered_metadata.csv')
         # os.path.join(config['dirs']['output'], 'scPipe.out'),
         # os.path.join(config['dirs']['output'], 'fastp_summary', 'report.html'),
         # os.path.join(config['dirs']['output'], 'fastp_summary', 'read_summary.csv'),
@@ -106,6 +120,53 @@ rule combine_data:
     script:
         'scripts/python/combine_datasets.py'
 
+# pre-process the count matrix performing gene/sample filtering.
+rule preprocess_data:
+    input:
+        cmat=os.path.join(config['dirs']['output'], 'matrix',
+                          'count_matrix.csv'),
+        meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv'),
+        after_combine=os.path.join(config['dirs']['output'], ('combined.out'))
+    params:
+        reads=config['thresholds']['bad'],
+        cells=config['thresholds']['cells'],
+        cpm=config['thresholds']['cpm']
+    output:
+        cmat=os.path.join(config['dirs']['output'], 'matrix',
+                          'filtered_count_matrix.csv'),
+        meta=os.path.join(config['dirs']['output'], 'metadata',
+                          'filtered_metadata.csv')
+    script:
+        'scripts/python/preprocess_data.py'
 
+# normalize raw data between samples and remove batch effects.
+rule normalize_data:
+    input:
+        cmat=os.path.join(config['dirs']['output'], 'matrix',
+                          'filtered_count_matrix.csv'),
+        meta=os.path.join(config['dirs']['output'], 'metadata',
+                          'filtered_metadata.csv')
+    params:
+        plot_dir=directory(os.path.join(config['dirs']['output'], 'plots'))
+    output:
+        cmat=os.path.join(config['dirs']['output'], 'final',
+                          'normalized_log_matrix.csv'),
+        meta=os.path.join(config['dirs']['output'], 'final',
+                          'metadata.csv')
+    script:
+        'scripts/r/normalize_data.R'
 
-        
+rule impute_dropouts:
+    input:
+        cmat=os.path.join(config['dirs']['output'], 'final',
+                          'normalized_log_matrix.csv')
+    output:
+        mat=os.path.join(config['dirs']['output'], 'final',
+                          'imputed_log_matrix.csv'),
+        plot=os.path.join(config['dirs']['output'], 'plots',
+                          'normalized_heatmap.png'),
+        imputed_plot=os.path.join(config['dirs']['output'], 'plots',
+                                  'imputed_heatmap.png')
+    script:
+        'scripts/python/impute_dropouts.py'
+                
