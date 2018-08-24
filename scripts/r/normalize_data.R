@@ -256,12 +256,12 @@ if (exists('snakemake')) {
             quote=FALSE)
 
   # write normalization plot
-  ggsave(filename=file.path(snakemake@output[['plot_dir']],
+  ggsave(filename=file.path(snakemake@params[['plot_dir']],
                             'normalization.png'), plot=out_data$norm_viz,
          device='png', width=10, height=8, dpi=600, units='in')
 
   # write batch-effect removal plot
-  ggsave(filename=file.path(snakemake@output[['plot_dir']],
+  ggsave(filename=file.path(snakemake@params[['plot_dir']],
                             'batch_removal.png'), plot=out_data$batch_viz,
          device='png', width=10, height=8, dpi=600, units='in')
 }
