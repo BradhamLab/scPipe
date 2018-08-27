@@ -20,6 +20,8 @@ import magic
 
 import seaborn as sns
 from matplotlib import pyplot as plt
+# switch to backend for scc runs
+plt.switch_backend('agg')
 
 
 if __name__ == '__main__':
