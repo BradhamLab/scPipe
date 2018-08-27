@@ -240,8 +240,8 @@ if (exists('snakemake')) {
                        row.names=1, check.names=FALSE)
 
   # check if plot dir exists, create if no
-  if (!dir.exists(snakemake@output[['plot_dir']])) {
-    dir.create(snakemake@output[['plot_dir']])
+  if (!dir.exists(snakemake@params[['plot_dir']])) {
+    dir.create(snakemake@params[['plot_dir']])
   }
 
   # get processed data and visualizations
