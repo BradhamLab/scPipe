@@ -1,2 +1,2 @@
 config: '/home/dakota/PythonModules/scPipe/files/new_data_config.yaml'
-
+output: 'final'

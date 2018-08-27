@@ -24,26 +24,7 @@ subworkflow read_alignment:
 
 rule all:
     input:
-        mat=os.path.join(config['dirs']['output'], 'final',
-                         'imputed_log_matrix.csv'),
-        plot=os.path.join(config['dirs']['output'], 'plots',
-                          'normalized_heatmap.png'),
-        imputed_plot=os.path.join(config['dirs']['output'], 'plots',
-                                  'imputed_heatmap.png')
-        # cmat=os.path.join(config['dirs']['output'], 'final',
-        #                   'normalized_log_matrix.csv'),
-        # meta=os.path.join(config['dirs']['output'], 'final',
-        #                   'metadata.csv'),
-        # plot_dir=directory(os.path.join(config['dirs']['output'], 'plots'))
-        # os.path.join(config['dirs']['output'], 'matrix',
-        #              'filtered_count_matrix.csv'),
-        # os.path.join(config['dirs']['output'], 'metadata',
-        #              'filtered_metadata.csv')
-        # os.path.join(config['dirs']['output'], 'scPipe.out'),
-        # os.path.join(config['dirs']['output'], 'fastp_summary', 'report.html'),
-        # os.path.join(config['dirs']['output'], 'fastp_summary', 'read_summary.csv'),
-        # os.path.join(config['dirs']['output'], 'matrix', 'count_matrix.csv'),
-        # os.path.join(config['dirs']['output'], 'multiqc', 'multiqc_report.html')
+        utils.run_output(config)
 
 
 rule run_pipeline:
@@ -116,7 +97,7 @@ rule combine_data:
         flag=config['flags']['combine_data'],
         dirs=config['dirs']['matrices']
     output:
-        out_file=os.path.join(config['dirs']['output'], ('combined.out'))
+        out_file=os.path.join(config['dirs']['output'], 'combined.out')
     script:
         'scripts/python/combine_datasets.py'
 

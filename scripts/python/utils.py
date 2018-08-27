@@ -21,6 +21,7 @@ def configure_run(config_dict):
     config['output'] = config_dict['output']
     return config
 
+
 def link_ids_to_input(data_dir, sample_regex, replicate_regex=''):
     """
     Link sample ids to data files.
@@ -84,14 +85,17 @@ def run_output(config_dict):
     output_dict = {'alignment':
                    os.path.join(config_dict['dirs']['output'], 'scPipe.out'),
                    'fastp_summary':
+                   (os.path.join(config_dict['dirs']['output'], 'scPipe.out'),
                    os.path.join(config_dict['dirs']['output'], 'fastp_summary',
-                                'report.html'),
+                                'report.html')),
                    'count_matrix':
                    os.path.join(config_dict['dirs']['output'], 'matrix',
                                 'count_matrix.csv'),
                    'multiqc':
-                   os.path.join(config_dict['dirs']['output'], 'multiqc',
-                                'multiqc_report.html'),
+                   (os.path.join(config_dict['dirs']['output'], 'matrix',
+                                'count_matrix.csv'),
+                    os.path.join(config_dict['dirs']['output'], 'multiqc',
+                                'multiqc_report.html')),
                    'metadata':
                    os.path.join(config_dict['dirs']['output'], 'metadata',
                                 'metadata.csv'),
@@ -108,9 +112,14 @@ def run_output(config_dict):
                           'imputed_log_matrix.csv'),
                    'final':
                    os.path.join(config_dict['dirs']['output'], 'final',
-                          'imputed_log_matrix.csv')
-                   }
-    return output_dict[config_dict['output']]
+                          'imputed_log_matrix.csv')}
+    
+    # check expected output key exists, default to final output otherwise.
+    expected_output = config_dict['output']
+    if expected_output not in output_dict.keys():
+        expected_output = 'final'
+    
+    return output_dict[expected_output]
   
 
 # STAR helper functions
