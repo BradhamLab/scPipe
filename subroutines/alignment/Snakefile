@@ -41,7 +41,7 @@ rule star_generate_genome:
         gtf=config['files']['gtf'],
         fasta=config['files']['genome_fasta']
     params:
-        read_length=(config['read_length'] - 1),
+        read_length=(config['dataset']['read_length'] - 1),
         extra=utils.get_star_genome_params(config),
         log=os.path.join(config['dirs']['log'], 'star')
     log:
