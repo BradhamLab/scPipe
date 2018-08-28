@@ -7,6 +7,7 @@ Script to visualize and organize read counts after quality control with fastp.
 
 # system imports
 import os
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'  # make cluster not crash
 
 # file io imports 
 import json

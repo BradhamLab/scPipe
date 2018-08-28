@@ -13,6 +13,8 @@ Date: August 24, 2018
 """
 
 import os
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'  # make cluster not crash
+
 import sys
 
 import pandas as pd
