@@ -25,6 +25,7 @@ from matplotlib import pyplot as plt
 # switch to backend for scc runs
 plt.switch_backend('agg')
 
+CLUSTER = True
 
 if __name__ == '__main__':
     snakemake_exists = True
@@ -43,13 +44,14 @@ if __name__ == '__main__':
         # write data
         imputed.to_csv(snakemake.output['mat'])
         
-        # plot non-imputed data
-        orig_heatmap = sns.clustermap(data.T, z_score=1, cmap='Blues')
-        plt.savefig(snakemake.output['plot'])
-        plt.cla()
+        if not CLUSTER: 
+            # plot non-imputed data
+            orig_heatmap = sns.clustermap(data.T, z_score=1, cmap='Blues')
+            plt.savefig(snakemake.output['plot'])
+            plt.cla()
 
-        # plot imputed data
-        imputed_heatmap = sns.clustermap(imputed, z_score=1, cmap='Blues')
-        plt.savefig(snakemake.output['imputed_plot'])
-        plt.cla()
+            # plot imputed data
+            imputed_heatmap = sns.clustermap(imputed, z_score=1, cmap='Blues')
+            plt.savefig(snakemake.output['imputed_plot'])
+            plt.cla()
 
