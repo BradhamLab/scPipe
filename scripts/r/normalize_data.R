@@ -52,8 +52,7 @@ normalize_data <- function(count_matrix, metadata, cluster=FALSE,
   }
   sce <- scran::computeSumFactors(sce, size=seq(20, max_size, step_size),
                                   cluster=clusters, assay.type='counts')
-  norm <- scater::normalizeSCE(sce, exprs_values='counts', return_log=FALSE,
-                               return_norm_as_exprs=True)
+  norm <- scater::normalizeSCE(sce, exprs_values='counts', return_log=FALSE)
   logcounts(norm) <- log_transform_counts(normcounts(norm))
   return(norm)
 }
