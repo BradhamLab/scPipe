@@ -50,6 +50,7 @@ rule star_generate_genome:
         genome=protected(directory(os.path.join(config['dirs']['output'],
                                    config['dirs']['genome'])))
     shell:
+        'source activate alignment; '
         'mkdir {output.genome}; (STAR --runMode genomeGenerate '
         '--genomeDir {output.genome} --genomeFastaFiles {input.fasta} '
         '--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} '
@@ -75,6 +76,7 @@ rule star_align_reads:
         os.path.join(config['dirs']['output'], 'star', 'alignments', '{sample}',
                     '{sample}Aligned.out.bam')
     shell:
+        'source activate alignment; '
         '(STAR --runMode alignReads --outSAMtype BAM Unsorted '
         '--readFilesCommand zcat --genomeDir {input.genome} '
         '--outFileNamePrefix {params.prefix} '
@@ -96,5 +98,6 @@ rule run_featureCounts:
         final=os.path.join(config['dirs']['output'], 'counts', '{sample}.txt')
 
     shell:
+        'source activate alignment; '
         '(featureCounts {input} -a {params.gtf} -F GTF -p -o {output.raw} '
         '{params.extra}) 2> {log}; cut -f1,7-8 {output.raw} > {output.final}'
