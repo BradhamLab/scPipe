@@ -143,11 +143,7 @@ rule impute_dropouts:
                           'normalized_log_matrix.csv')
     output:
         mat=os.path.join(config['dirs']['output'], 'final',
-                          'imputed_log_matrix.csv'),
-        plot=os.path.join(config['dirs']['output'], 'plots',
-                          'normalized_heatmap.png'),
-        imputed_plot=os.path.join(config['dirs']['output'], 'plots',
-                                  'imputed_heatmap.png')
+                          'imputed_log_matrix.csv')
     script:
         'scripts/python/impute_dropouts.py'
                 
