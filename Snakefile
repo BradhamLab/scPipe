@@ -128,7 +128,7 @@ rule normalize_data:
         meta=os.path.join(config['dirs']['output'], 'metadata',
                           'filtered_metadata.csv')
     params:
-        plot_dir=directory(os.path.join(config['dirs']['output'], 'plots'))
+        plot_dir=os.path.join(config['dirs']['output'], 'plots')
     output:
         cmat=os.path.join(config['dirs']['output'], 'final',
                           'normalized_log_matrix.csv'),
