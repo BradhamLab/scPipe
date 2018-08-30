@@ -2,7 +2,7 @@
 
 Pipeline used for single-cell RNAseq read alignment in the Bradham Lab at Boston University.
 
-The pipeline is implemented using SnakeMake<sup>*</sup>.
+The pipeline is implemented using [SnakeMake](https://bitbucket.org/snakemake/snakemake)<sup>*</sup>.
 
 ## Installation
 
@@ -38,7 +38,7 @@ This can be installed using the `conda install cython` command.
 
 ## Running the Pipeline
 
-The pipeline is created using (SnakeMake)[https://bitbucket.org/snakemake/snakemake], therefore executing the pipeline is the same as any other SnakeMake pipeline.
+The pipeline is created using SnakeMake, therefore executing the pipeline is the same as any other SnakeMake pipeline.
 
 **Perform a dry run**:
 
