@@ -4,7 +4,11 @@ Pipeline used for single-cell RNAseq read alignment in the Bradham Lab at Boston
 
 The pipeline is implemented using SnakeMake<sup>*</sup>.
 
-## Conda Environments
+## Installation
+
+To install the pipeline, simply clone this repository and install the required `conda` environments using the provided specification files. *This pipeline has only been tested in a Linux environment. It is not guaranteed to work on a Mac or Windows machine.*
+
+### Conda Environments
 
 Two conda environments are required to run the pipeline:
 
@@ -31,6 +35,18 @@ You may also need to install `Cython` for some package use in the `multiqc` envi
 This can be installed using the `conda install cython` command.
 
 <sup>*</sup>Note, on some systems the Python 3 version of `MultiQC` fails due to the `click` library failing to deal with strings properly. If this is the case, specify `python=2.7` upon environment creation.
+
+## Running the Pipeline
+
+The pipeline is created using (SnakeMake)[https://bitbucket.org/snakemake/snakemake], therefore executing the pipeline is the same as any other SnakeMake pipeline.
+
+**Perform a dry run**:
+
+Navigate to the head of the repository. In your terminal issue the following command: `snakemake -np`
+
+**Run the pipeline**:
+
+Navigate to the head of the repository. In your terminal issue the following command: `snakemake`
 
 
 ## Pipeline
