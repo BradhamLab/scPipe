@@ -7,8 +7,9 @@ Date: August 16, 2018
 
 import os
 import re
-import numpy as np
 import subprocess as sbp
+
+import numpy as np
 import yaml
 
 # General helper functions
