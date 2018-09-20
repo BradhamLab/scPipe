@@ -15,12 +15,13 @@ DIRNAMES = utils.link_ids_to_input(config['dirs']['data'],
 IDS = list(DIRNAMES.keys())
 # IDS = ['MK886-PMCs-3-G05']
 
+# expand(os.path.join(config['dirs']['output'], 'counts', '{sample}.txt'),
+#         sample=IDS),
+# expand(os.path.join(config['dirs']['output'], 'raw_counts', '{sample}',
+#                     '{sample}.out'), sample=IDS),
+
 rule all:
     input:
-        expand(os.path.join(config['dirs']['output'], 'counts', '{sample}.txt'),
-               sample=IDS),
-        expand(os.path.join(config['dirs']['output'], 'raw_counts', '{sample}',
-                            '{sample}.out'), sample=IDS),
         expand(os.path.join(config['dirs']['output'], 'cufflinks', '{sample}',
                      'isoforms.fpkm_tracking'), sample=IDS)
 # Run read quality control before alignment
@@ -80,8 +81,7 @@ rule star_align_reads:
         'source activate alignment; '
         '(STAR --runMode alignReads --outSAMtype BAM Unsorted '
         '--readFilesCommand zcat --genomeDir {input.genome} '
-        '--outFileNamePrefix {params.prefix} --outSAMstrandField intronMotif '
-        '--outFilterIntronMotifs RemoveNoncanonical'
+        '--outFileNamePrefix {params.prefix} '
         '--readFilesIn {input.r1} {input.r2} {params.extra}) 2> {log}'
 
 
@@ -102,30 +102,5 @@ rule run_featureCounts:
     shell:
         'source activate alignment; '
         '(featureCounts {input} -a {params.gtf} -F GTF -p -o {output.raw} '
-        '{params.extra}) 2> {log}; cut -f1,7-8 {output.raw} > {output.final}'
+        '{params.extra}) 2> {log}; cut -f 1,6-8 {output.raw} > {output.final}'
 
-
-# calculate within-sample normalized cell counts in FPKM
-rule calculate_fpkm:
-    input:
-        os.path.join(config['dirs']['output'], 'star', 'alignments', '{sample}',
-                     '{sample}Aligned.out.bam')
-    params:
-        gtf=config['files']['gtf'],
-        genome=config['files']['genome_fasta'],
-        extra=config['params']['cufflinks'],
-        prefix=os.path.join(config['dirs']['output'], 'cufflinks', '{sample}')
-    log:
-        os.path.join(config['dirs']['log'], 'cufflinks', '{sample}.log')
-    output:
-        os.path.join(config['dirs']['output'], 'cufflinks', '{sample}',
-                     'transcripts.gtf'),
-        os.path.join(config['dirs']['output'], 'cufflinks', '{sample}',
-                     'isoforms.fpkm_tracking'),
-        os.path.join(config['dirs']['output'], 'cufflinks', '{sample}',
-                     'genes.fpkm_tracking')
-
-    shell:
-        'source activate alignment; '
-        'cufflinks -g {params.gtf} -b {params.genome} -N -o {params.prefix}'
-        '{params.extra} {input}'
