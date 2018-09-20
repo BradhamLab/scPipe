@@ -17,21 +17,43 @@ def merge_counts(count_dir):
     Merge featureCounts output from several sample files into a
     single dataframe.
 
+    Merge featureCounts quantification across samples. Returns raw feature
+    counts across datasets, as well as transcripts per million (TPM) counts.
+
     Args:
         count_dir (string): path to directory containing HTSeq output. Files
         are expected to follow a {sample.name}.txt naming scheme.
 
     Returns:
-     (pd.DataFrame): pandas dataframe of read counts mapped to each gene.
+     (dict, pd.DataFrame): dictionary of pandas dataframes containing raw read
+        counts and TPM normalized values. Keyed by 'count' and 'tpm'. 
     """
     data_frames = []
     for x in os.listdir(count_dir):
-        data_frames.append(pd.read_csv(os.path.join(count_dir, x),
-                                       index_col=0, sep='\t',
-                                       names=[os.path.splitext(x)[0]],
-                                       skiprows=[0, 1]))
-    count_df = pd.concat(data_frames, axis=1)
-    return count_df
+        sample = os.path.basename(os.path.split(x)[0])
+        sample_df = pd.read_csv(os.path.join(count_dir, x),
+                                index_col=0, sep='\t',
+                                header=0,
+                                names=['Length', 'Count'],
+                                skiprows=[0])
+        # calculate count to feature length ratio
+        counts_per_base = sample_df.apply(lambda x: x[1] / x[0], axis=1)
+
+        # calculate sum of ratios / rates for normalization
+        total_cpb = counts_per_base.sum()
+        if total_cpb != 0:
+            tpm = counts_per_base.apply(lambda x: x * 1 / total_cpb * 10**6)
+        # total rates is zero -> no transcriptcs, tpm = 0 for all 
+        else:
+            tpm = sample_df['Count']
+
+        count_df = pd.DataFrame(sample_df['Count'], columns=[sample])
+        tpm_df = pd.DataFrame(tpm, columns=[sample])
+        data_frames.append({'count': count_df, 'tpm': tpm_df})
+
+    count_matrix = pd.concat([each['count'] for each in data_frames], axis=1)
+    tpm_matrix = pd.concat([each['tpm'] for each in data_frames], axis=1)
+    return {'count':count_matrix, 'tpm': tpm_matrix}
 
 
 def remove_zero_genes(count_df):
@@ -51,6 +73,6 @@ if __name__ == "__main__":
         snakemake_exists = False
 
     if snakemake_exists:
-        count_df = merge_counts(snakemake.params['dir'])
-        filtered_df = remove_zero_genes(count_df)
-        filtered_df.to_csv(snakemake.output['csv'])
+        dataframes = merge_counts(snakemake.params['dir'])
+        remove_zero_genes(dataframes['count']).to_csv(snakemake.output['count'])
+        remove_zero_genes(dataframes['tpm']).to_csv(snakemake.output['tpm'])
