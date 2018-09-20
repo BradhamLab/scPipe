@@ -58,7 +58,9 @@ rule create_count_matrix:
     params:
         dir=os.path.join(config['dirs']['output'], 'counts')
     output:
-        csv=os.path.join(config['dirs']['output'], 'matrix', 'count_matrix.csv')
+        count=os.path.join(config['dirs']['output'], 'matrix',
+                           'count_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'matrix', 'tpm_matrix.csv')
     script:
         'scripts/python/merge_read_counts.py'
 
@@ -92,6 +94,7 @@ rule combine_data:
     input:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
                           'count_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'matrix', 'tpm_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
     params:
         flag=config['flags']['combine_data'],
@@ -106,6 +109,7 @@ rule preprocess_data:
     input:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
                           'count_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'matrix', 'tpm_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv'),
         after_combine=os.path.join(config['dirs']['output'], ('combined.out'))
     params:
@@ -115,6 +119,8 @@ rule preprocess_data:
     output:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
                           'filtered_count_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'matrix',
+                         'filtered_tpm_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'metadata',
                           'filtered_metadata.csv')
     script:
@@ -125,6 +131,8 @@ rule normalize_data:
     input:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
                           'filtered_count_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'matrix',
+                         'filtered_tpm_matrix.csv')
         meta=os.path.join(config['dirs']['output'], 'metadata',
                           'filtered_metadata.csv')
     params:
@@ -132,6 +140,8 @@ rule normalize_data:
     output:
         cmat=os.path.join(config['dirs']['output'], 'final',
                           'normalized_log_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'final',
+                         'normalized_tpm_matrix.csv')
         meta=os.path.join(config['dirs']['output'], 'final',
                           'metadata.csv')
     script:
@@ -140,10 +150,14 @@ rule normalize_data:
 rule impute_dropouts:
     input:
         cmat=os.path.join(config['dirs']['output'], 'final',
-                          'normalized_log_matrix.csv')
+                          'normalized_log_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'final',
+                         'normalized_tpm_matrix.csv')
     output:
         mat=os.path.join(config['dirs']['output'], 'final',
-                          'imputed_log_matrix.csv')
+                         'imputed_log_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'final',
+                         'imputed_tpm_matrix.csv')
     script:
         'scripts/python/impute_dropouts.py'
                 
