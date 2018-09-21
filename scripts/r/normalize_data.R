@@ -4,13 +4,15 @@
 #' @date: August 20, 2018
 
 
-require(scran)
-require(scater)
-require(SingleCellExperiment)
-require(scater)
-require(umap)
-require(ggplot2)
-require(reshape2)
+suppressMessages(require(scran))
+suppressMessages(require(scater))
+suppressMessages(require(SingleCellExperiment))
+suppressMessages(require(monocle))
+suppressMessages(require(scater))
+suppressMessages(require(umap))
+suppressMessages(require(ggplot2))
+suppressMessages(require(reshape2))
+
 
 
 #' Normalize Data
@@ -32,12 +34,13 @@ require(reshape2)
 #' @return (SingleCellExperiment): SingleCellExperiment with
 #'   normalized expression values in the `exprs` slot.
 #' @export
-normalize_data <- function(count_matrix, metadata, cluster=FALSE,
+normalize_count_data <- function(count_matrix, metadata, cluster=FALSE,
                            min_cluster_size=5, step_size=5) {
   batch_sizes <- sapply(unique(metadata$batch), function(x) {
     return(sum(metadata$batch == x))
   })
-  counts = as.matrix(count_matrix)
+
+  counts <- as.matrix(count_matrix)
   log_counts <- log_transform_counts(counts)
 
   sce <- SingleCellExperiment::SingleCellExperiment(
@@ -73,6 +76,24 @@ log_transform_counts <- function(count_matrix, zero_sub=10^(-6)) {
   return(log_counts)
 }
 
+#' Estimate absolute abundance of transcripts
+#'
+#' Estimates absolute abundance of transcripts from TPM data using the Census
+#' Method outlined in Monocle.
+#'
+#' @param tpm_matrix (data.frame): g x sample tpm data
+#'
+#' @return (data.matrix): matrix of estimate counts.
+#'
+#' @references
+#'   Qiu, X., Hill, A., Packer, J., Lin, D., Ma, Y.-A., & Trapnell, C. (2017).
+#'     Single-cell mRNA quantification and differential analysis with Census.
+#'     Nature Methods, 14(3), 309–315. https://doi.org/10.1038/nmeth.4150
+absolute_abundance <- function(tpm_matrix) {
+  tpm_cds <- suppressWarnings(monocle::newCellDataSet(as.matrix(tpm_matrix)))
+  abs_matrix <- monocle::relative2abs(tpm_cds, method='tpm_fraction')
+  return(abs_matrix)
+}
 
 #' Remove Batch Effects
 #'
@@ -212,7 +233,8 @@ visualize_batch_effect <- function(norm, norm_batch) {
 
 #' Preprocess Read Count Expression Data
 #'
-#' @param count_data (data.frame): gene x sample read counts
+#' @param count_data (data.frame): gene x sample read counts.
+#' @param tpm_data (data.frame): gene x sample tpm matrix.
 #' @param metadata (data.frame): metadata containing information for cells.
 #'   including a `batch` column.
 #'
@@ -221,20 +243,25 @@ visualize_batch_effect <- function(norm, norm_batch) {
 #'   correction visualization ('batch_viz').
 #'
 #' @export
-main <- function(count_data, metadata) {
-  norm_data <- normalize_data(count_data, metadata, cluster=FALSE)
-  norm_viz <- visualize_normalization(count_data, norm_data)
-  batch_norm <- remove_batch_effects(norm_data)
-  batch_viz <- visualize_batch_effect(norm_data, batch_norm)
-  out_list <- list('data'=batch_norm, 'norm_viz'=norm_viz,
-                   'batch_viz'=batch_viz)
-  return(out_list)
+main <- function(count_data, tpm_data, metadata) {
+  abs_data <- absolute_abundance(tpm_data)
+  out_data <- lapply(list(count_data, abs_data), function(data) {
+    normalized <- normalize_count_data(data, metadata, cluster=FALSE)
+    batch_norm <- remove_batch_effects(normalized)
+    norm_viz <- visualize_normalization(data, normalized)
+    batch_viz <- visualize_batch_effect(normalized, batch_norm)
+    return(list('data'=batch_norm, 'norm_viz'=norm_viz, 'batch_viz'=batch_viz))
+  })
+  names(out_data) <- c('count', 'tpm')
+  return(out_data)
 }
 
 if (exists('snakemake')) {
   # read in data
   count_data <- read.csv(snakemake@input[['cmat']],
                          row.names=1, check.names=FALSE)
+  tpm_data <- read.csv(snakemake@input[['tpm']],
+                       row.names=1, check.names=FALSE)
   metadata <- read.csv(snakemake@input[['meta']],
                        row.names=1, check.names=FALSE)
 
@@ -244,23 +271,41 @@ if (exists('snakemake')) {
   }
 
   # get processed data and visualizations
-  out_data <- main(count_data, metadata)
+  out_data <- main(count_data, tpm_data, metadata)
 
-  # write normalized log data to 'final' directory
-  write.csv(logcounts(out_data$data), file=snakemake@output[['cmat']],
+  # write normalized log-count data to 'final' directory
+  write.csv(logcounts(out_data$count$data), file=snakemake@output[['cmat']],
+            quote=FALSE)
+
+  # write normalized tpm data to 'final' directory
+  write.csv(logcounts(out_data$tpm$data), file=snakemake@output[['tpm']],
             quote=FALSE)
 
   # write metadata to 'final' directory
-  write.csv(colData(out_data$data), file=snakemake@output[['meta']],
+  write.csv(metadata, file=snakemake@output[['meta']],
             quote=FALSE)
 
   # write normalization plot
   ggsave(filename=file.path(snakemake@params[['plot_dir']],
-                            'normalization.png'), plot=out_data$norm_viz,
+                            'count_normalization.png'),
+         plot=out_data$count$norm_viz,
          device='png', width=10, height=8, dpi=600, units='in')
 
   # write batch-effect removal plot
   ggsave(filename=file.path(snakemake@params[['plot_dir']],
-                            'batch_removal.png'), plot=out_data$batch_viz,
+                            'count_batch_removal.png'),
+         plot=out_data$count$batch_viz,
+         device='png', width=10, height=8, dpi=600, units='in')
+
+  # write normalization plot
+  ggsave(filename=file.path(snakemake@params[['plot_dir']],
+                            'tpm_normalization.png'),
+         plot=out_data$tpm$norm_viz,
+         device='png', width=10, height=8, dpi=600, units='in')
+
+  # write batch-effect removal plot
+  ggsave(filename=file.path(snakemake@params[['plot_dir']],
+                            'tpm_batch_removal.png'),
+         plot=out_data$tpm$batch_viz,
          device='png', width=10, height=8, dpi=600, units='in')
 }

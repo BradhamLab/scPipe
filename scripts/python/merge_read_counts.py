@@ -30,11 +30,11 @@ def merge_counts(count_dir):
     """
     data_frames = []
     for x in os.listdir(count_dir):
-        sample = os.path.basename(os.path.split(x)[0])
+        sample = os.path.basename(os.path.splitext(x)[0])
         sample_df = pd.read_csv(os.path.join(count_dir, x),
                                 index_col=0, sep='\t',
                                 header=0,
-                                names=['Length', 'Count'],
+                                names=['Length', sample],
                                 skiprows=[0])
         # calculate count to feature length ratio
         counts_per_base = sample_df.apply(lambda x: x[1] / x[0], axis=1)
@@ -43,13 +43,12 @@ def merge_counts(count_dir):
         total_cpb = counts_per_base.sum()
         if total_cpb != 0:
             tpm = counts_per_base.apply(lambda x: x * 1 / total_cpb * 10**6)
+            tpm.rename(sample, inplace=True)
         # total rates is zero -> no transcriptcs, tpm = 0 for all 
         else:
-            tpm = sample_df['Count']
+            tpm = sample_df[sample]
 
-        count_df = pd.DataFrame(sample_df['Count'], columns=[sample])
-        tpm_df = pd.DataFrame(tpm, columns=[sample])
-        data_frames.append({'count': count_df, 'tpm': tpm_df})
+        data_frames.append({'count': sample_df[sample], 'tpm': tpm})
 
     count_matrix = pd.concat([each['count'] for each in data_frames], axis=1)
     tpm_matrix = pd.concat([each['tpm'] for each in data_frames], axis=1)
@@ -74,5 +73,8 @@ if __name__ == "__main__":
 
     if snakemake_exists:
         dataframes = merge_counts(snakemake.params['dir'])
-        remove_zero_genes(dataframes['count']).to_csv(snakemake.output['count'])
-        remove_zero_genes(dataframes['tpm']).to_csv(snakemake.output['tpm'])
+        filtered_counts = remove_zero_genes(dataframes['count'])
+        filtered_tpm = dataframes['tpm'].loc[filtered_counts.index,
+                                             filtered_counts.columns]
+        filtered_counts.to_csv(snakemake.output['count'])
+        filtered_tpm.to_csv(snakemake.output['tpm'])

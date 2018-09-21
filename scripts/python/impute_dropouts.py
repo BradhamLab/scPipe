@@ -25,7 +25,7 @@ from matplotlib import pyplot as plt
 # switch to backend for scc runs
 plt.switch_backend('agg')
 
-CLUSTER = True
+CLUSTER = False
 
 if __name__ == '__main__':
     snakemake_exists = True
@@ -34,24 +34,33 @@ if __name__ == '__main__':
     except NameError:
         snakemake_exists = False
     if snakemake_exists:
-        # read in data
-        data = pd.read_csv(snakemake.input['cmat'], index_col=0)
+        data_holder = {'count': {'input': snakemake.input['cmat'],
+                                 'output': snakemake.output['cmat']},
+                       'tpm': {'input': snakemake.input['tpm'],
+                               'output': snakemake.output['tpm']}}
         
-        # impute with magic
-        magic_op = magic.MAGIC()
-        imputed = magic_op.fit_transform(data.T, genes='all_genes')
-
-        # write data
-        imputed.to_csv(snakemake.output['mat'])
+        for key in data_holder.keys():
+            # read in data
+            data = pd.read_csv(data_holder[key]['input'], index_col=0)
         
-        if not CLUSTER: 
-            # plot non-imputed data
-            orig_heatmap = sns.clustermap(data.T, z_score=1, cmap='Blues')
-            plt.savefig(snakemake.output['plot'])
-            plt.cla()
+            # impute with magic
+            magic_op = magic.MAGIC()
+            imputed = magic_op.fit_transform(data.T, genes='all_genes')
 
-            # plot imputed data
-            imputed_heatmap = sns.clustermap(imputed, z_score=1, cmap='Blues')
-            plt.savefig(snakemake.output['imputed_plot'])
-            plt.cla()
+            # write data
+            imputed.to_csv(data_holder[key]['output'])
+        
+            if not CLUSTER: 
+                # plot non-imputed data
+                orig_heatmap = sns.clustermap(data.T, z_score=1, cmap='Blues')
+                plt.savefig(os.path.join(snakemake.params['plot_dir'],
+                            '{}_heatmap.png'.format(key)))
+                plt.cla()
+
+                # plot imputed data
+                imputed_heatmap = sns.clustermap(imputed, z_score=1,
+                                                 cmap='Blues')
+                plt.savefig(os.path.join(snakemake.params['plot_dir'],
+                            '{}_imputed_heatmap.png'.format(key)))
+                plt.cla()
 

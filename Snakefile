@@ -22,39 +22,45 @@ subworkflow read_alignment:
     workdir: './subroutines/alignment'
     snakefile: './subroutines/alignment/Snakefile'
 
+print(utils.run_output(config))
+
 rule all:
     input:
         utils.run_output(config)
 
 
-rule run_pipeline:
-    input:
-        read_alignment(expand(os.path.join(config['dirs']['output'], 'counts',
-                                           '{sample}.txt'), sample=IDS))
-    output:
-        os.path.join(config['dirs']['output'], 'scPipe.out')
-    shell:
-        'echo "Alignment complete!" > {output}'
+# rule run_pipeline:
+#     input:
+#         read_alignment(expand(os.path.join(config['dirs']['output'], 'counts',
+#                                            '{sample}.txt'), sample=IDS))
+#     output:
+#         os.path.join(config['dirs']['output'], 'scPipe.out')
+#     shell:
+#         'echo "Alignment complete!" > {output}'
 
 
-# summarize `fastp` filtered reads
-rule summarize_fastp:
-    params:
-        fastp=os.path.join(config['dirs']['output'], 'qc'),
-        outdir=os.path.join(config['dirs']['output'], 'fastp_summary'),
-        regex=config['sample_regex']['treatment'],
-        bad=config['thresholds']['bad'],
-        ugly=config['thresholds']['ugly']
-    output:
-        os.path.join(config['dirs']['output'], 'fastp_summary', 'report.html'),
-        os.path.join(config['dirs']['output'], 'fastp_summary',
-                     'read_summary.csv')
-    script:
-        'scripts/python/summarize_read_counts.py'
+# # summarize `fastp` filtered reads
+# rule summarize_fastp:
+#     input:
+#         os.path.join(config['dirs']['output'], 'scPipe.out')
+#     params:
+#         fastp=os.path.join(config['dirs']['output'], 'qc'),
+#         outdir=os.path.join(config['dirs']['output'], 'fastp_summary'),
+#         regex=config['sample_regex']['treatment'],
+#         bad=config['thresholds']['bad'],
+#         ugly=config['thresholds']['ugly']
+#     output:
+#         os.path.join(config['dirs']['output'], 'fastp_summary', 'report.html'),
+#         os.path.join(config['dirs']['output'], 'fastp_summary',
+#                      'read_summary.csv')
+#     script:
+#         'scripts/python/summarize_read_counts.py'
 
 
 # combine counts into matrix
 rule create_count_matrix:
+    input:
+        os.path.join(config['dirs']['output'], 'scPipe.out')
     params:
         dir=os.path.join(config['dirs']['output'], 'counts')
     output:
@@ -132,7 +138,7 @@ rule normalize_data:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
                           'filtered_count_matrix.csv'),
         tpm=os.path.join(config['dirs']['output'], 'matrix',
-                         'filtered_tpm_matrix.csv')
+                         'filtered_tpm_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'metadata',
                           'filtered_metadata.csv')
     params:
@@ -141,7 +147,7 @@ rule normalize_data:
         cmat=os.path.join(config['dirs']['output'], 'final',
                           'normalized_log_matrix.csv'),
         tpm=os.path.join(config['dirs']['output'], 'final',
-                         'normalized_tpm_matrix.csv')
+                         'normalized_tpm_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'final',
                           'metadata.csv')
     script:
@@ -153,8 +159,10 @@ rule impute_dropouts:
                           'normalized_log_matrix.csv'),
         tpm=os.path.join(config['dirs']['output'], 'final',
                          'normalized_tpm_matrix.csv')
+    params:
+        plot_dir=os.path.join(config['dirs']['output'], 'plots')
     output:
-        mat=os.path.join(config['dirs']['output'], 'final',
+        cmat=os.path.join(config['dirs']['output'], 'final',
                          'imputed_log_matrix.csv'),
         tpm=os.path.join(config['dirs']['output'], 'final',
                          'imputed_tpm_matrix.csv')
