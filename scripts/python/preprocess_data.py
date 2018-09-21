@@ -94,9 +94,12 @@ if __name__ == "__main__":
 
     if snakemake_exists:
         cmat = pd.read_csv(snakemake.input['cmat'], index_col=0)
+        tpm = pd.read_csv(snakemake.input['tpm'], index_col=0)
         meta = pd.read_csv(snakemake.input['meta'], index_col=0)
         f_cmat, f_meta = main(cmat, meta, snakemake.params['reads'],
                               snakemake.params['cells'],
                               snakemake.params['cpm'])
+        f_tpm = tpm.loc[f_cmat.index.values, f_cmat.columns.values]
         f_cmat.to_csv(snakemake.output['cmat'])
+        f_tpm.to_csv(snakemake.output['tpm'])
         f_meta.to_csv(snakemake.output['meta'])
