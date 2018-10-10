@@ -5,6 +5,9 @@ import seaborn as sns
 import scanpy.api as sc
 import umap
 import louvain
+import igraph
+import string
+import sklearn
 from scipy import spatial, stats
 
 sc.settings.verbosity = 1
@@ -119,6 +122,192 @@ def filter_genes(anno_data, gene_col, values):
                   anno_data.var.loc[x, gene_col] in values]
     return anno_data[:, keep_genes]
 
+# Define and use a simple function to label the plot in axes coordinates
+def label_kde(x, color, label):
+    """[summary]
+    
+    Parameters
+    ----------
+    x : [type]
+        [description]
+    color : [type]
+        [description]
+    label : [type]
+        [description]
+    
+    """
+
+    ax = plt.gca()
+    ax.text(0, .2, label, fontweight="bold", color=color,
+            ha="left", va="center", transform=ax.transAxes)
+
+
+# TODO document
+def get_gene_identifier(scaffold, gene_df):
+    """[summary]
+    
+    Parameters
+    ----------
+    scaffold : [type]
+        [description]
+    gene_df : [type]
+        [description]
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    if not pd.isnull(gene_df.loc[scaffold, 'UniProt.Name']):
+        return gene_df.loc[scaffold, 'UniProt.Name'].split('_')[0]
+    elif not pd.isnull(gene_df.loc[scaffold, 'Uniprot.ID']):
+        return gene_df.loc[scaffold, 'UniProt.ID']
+    elif not pd.isnull(gene_df.loc[scaffold, 'SPU']):
+        return gene_df.loc[scaffold, 'SPU']
+    else:
+        return "No.Name"
+
+
+#TODO document
+def ridge_plot(anno_df, gene_name, cluster_col='louvain', mask_zeros=True):
+    """[summary]
+    
+    Parameters
+    ----------
+    anno_df : [type]
+        [description]
+    gene_name : [type]
+        [description]
+    cluster_col : str, optional
+        [description] (the default is 'louvain', which [default_description])
+    mask_zeros : bool, optional
+        [description] (the default is True, which [default_description])
+    
+    """
+
+    # isolate top gene for each plotting
+    gene_df = anno_df[:, gene_name]
+    gene_df = pd.DataFrame(data=gene_df.X,
+                            index=gene_df.obs.index,
+                            columns=gene_df.var.index)
+    gene_df.columns = ['x']
+    if mask_zeros:
+        print("Creating ridge plots with masked zero counts. Set `mask_zeros=False` to keep zeros.")
+        gene_df['x'] = gene_df['x'].where(gene_df['x']> 0)
+    gene_df[cluster_col] = anno_df.obs[cluster_col]
+
+    # five thirty eight colors
+    colors = ['#008fd5', '#fc4f30', '#e5ae38', '#6d904f', '#8b8b8b', '#810f7c']
+    sns.set(style="white", rc={"axes.facecolor": (0, 0, 0, 0)})
+    facet = sns.FacetGrid(data=gene_df, row=cluster_col, hue=cluster_col,
+                          palette=colors, aspect=5, height=1)
+    facet.map(sns.kdeplot, 'x', clip_on=False, shade=True, alpha=1, lw=1.5, bw=.2)
+    facet.map(sns.kdeplot, 'x', clip_on=False, color="w", lw=2, bw=.2)
+    facet.map(plt.axhline, y=0, lw=2, clip_on=False)
+
+    facet.map(label_kde, 'x')
+
+    # Set the subplots to overlap
+    facet.fig.subplots_adjust(hspace=-.25)
+
+    # Remove axes details that don't play well with overlap
+    facet.set_titles("")
+    facet.set(yticks=[])
+    facet.despine(bottom=True, left=True)
+    plt.xlabel('{} expression ($log_2(read counts))$'.format(
+        get_gene_identifier(gene_name, anno_df.var)))
+    plt.show()
+    plt.cla()
+
+
+#TODO document
+def plot_ranked_genes(anno_df, cluster_col='louvain', n_genes=10):
+    """[summary]
+    
+    Parameters
+    ----------
+    anno_df : [type]
+        [description]
+    cluster_col : str, optional
+        [description] (the default is 'louvain', which [default_description])
+    n_genes : int, optional
+        [description] (the default is 10, which [default_description])
+    
+    """
+
+    ranked_genes = anno_df.uns['rank_genes_groups']
+    clusters = sorted(anno_df.obs[cluster_col].values.unique())
+    best_genes = set()
+    for each in clusters:
+        ridge_plot(anno_df, ranked_genes['names'][each][0])
+        best_genes = best_genes.union(ranked_genes['names'][each])
+
+    # heatmap_data = pd.DataFrame(data=anno_df[:, list(best_genes)].X,
+    #                             index=anno_df.obs.index,
+    #                             columns=list(best_genes))
+    # colors = ['#008fd5', '#fc4f30', '#e5ae38', '#6d904f', '#8b8b8b', '#810f7c']
+    # clus2col = {x: colors[i % len(clusters)] for i, x in enumerate(clusters)}
+    # cluster_colors = [clus2col[x] for x in anno_df.obs[cluster_col]]
+    # sns.clustermap(data=heatmap_data, row_colors=cluster_colors)
+
+
+def dispersion(array):
+    """[summary]
+    
+    Parameters
+    ----------
+    array : [type]
+        [description]
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    quartiles = np.percentile(array, [25, 75])
+    return (quartiles[1] - quartiles[0]) / (quartiles[1] + quartiles[0])
+
+def variable_genes(anno_df, percentile=0.75, ignore_zeros=True):
+    """[summary]
+    
+    Parameters
+    ----------
+    anno_df : [type]
+        [description]
+    percentile : float, optional
+        [description] (the default is 0.75, which [default_description])
+    ignore_zeros : bool, optional
+        [description] (the default is True, which [default_description])
+    
+    Raises
+    ------
+    ValueError
+        [description]
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    gene_dispersion = np.zeros(anno_df.shape[1])
+    if not 0 < percentile < 1:
+        raise ValueError('`percentile` must be a value in between 0 and 1.')
+    if not ignore_zeros:
+        Warning("Keeping zeros when calculating dispersion often leads to NaNs.")
+    for i, gene in enumerate(anno_df.var.index):
+        expression = anno_df[:, gene].X
+        if ignore_zeros:
+            expression = expression[expression != 0]
+        if len(expression) > 0:
+            gene_dispersion[i] = dispersion(expression)
+    sorted_dispersion = np.argsort(gene_dispersion)
+    start_idx = int(len(sorted_dispersion)*percentile)
+
+    return anno_df.var.index.values[start_idx:]
+
 
 def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
                      compare_col='treatment'):
@@ -231,14 +420,16 @@ def plot_expectation_difference(observed, expected, normalize=False,
 
     plt.style.use('fivethirtyeight')
     if not normalize:
-        # raw difference
+        # raw count difference
         difference = observed - expected
         ylab = 'Count Difference'
     else:
         # calculate percent error 
         difference = (observed - expected) / (expected) * 100
         ylab = 'Percent Error'
-        
+    
+    # treat categorical data as strings
+    difference.rename(columns=str, inplace=True)
     difference['Cluster'] = difference.index.values
     plot_data = pd.melt(difference, id_vars='Cluster')
     figure = sns.barplot(x='Cluster', y='value', hue=compare_col,
@@ -263,14 +454,65 @@ def plot_expectation_difference(observed, expected, normalize=False,
                 if p < 0.01:
                     marker='**'
                 figure.annotate(marker,
-                                xy=(difference.index.values[i],
-                                    np.max(difference.iloc[i, :-1])),
+                                xy=(i, np.max(difference.iloc[i, :-1])),
                                 horizontalalignment='center')
     
     return figure
 
+def plot_umap(anno_df, color_col, shape_col):
+    """[summary]
+    
+    Parameters
+    ----------
+    anno_df : [type]
+        [description]
+    color_col : [type]
+        [description]
+    shape_col : [type]
+        [description]
+    
+    """
+
+    plt.style.use('fivethirtyeight')
+    figure = sns.scatterplot(data=clustered.obs, x='umap1', y='umap2',
+                             hue=color_col, style=shape_col, s=100)
+    patches, labels = figure.get_legend_handles_labels()
+    figure.legend_.remove()
+
+    color_idx = [i for i, x in enumerate(labels) if x == color_col][0]
+    shape_idx = [i for i, x in enumerate(labels) if x == shape_col][0]
+    labels[color_idx] = labels[color_idx][0].upper() + labels[color_idx][1:]
+    labels[shape_idx] = labels[shape_idx][0].upper() + labels[shape_idx][1:]
+
+    label_order = np.argsort(labels[color_idx:shape_idx])
+    color_legend = plt.legend(patches[color_idx:shape_idx],
+                              labels[color_idx:shape_idx], loc=0,
+                              frameon=False)
+    figure.legend(patches[shape_idx:], labels[shape_idx:], loc=4, frameon=False)
+    plt.gca().add_artist(color_legend)
+    plt.show()
+    plt.cla()
+
+
 def cluster_cells(anno_df, nn=15, metric='cosine'):
-    sc.pp.neighbors(anno_df, n_neighbors=nn, metric=metric)
+    """[summary]
+    
+    Parameters
+    ----------
+    anno_df : [type]
+        [description]
+    nn : int, optional
+        [description] (the default is 15, which [default_description])
+    metric : str, optional
+        [description] (the default is 'cosine', which [default_description])
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    sc.pp.neighbors(anno_df, n_neighbors=nn, metric=metric, use_rep='X')
     sc.tl.umap(anno_df, min_dist=0.0)
     sc.tl.louvain(anno_df)
     anno_df.obs['umap1'] = anno_df.obsm['X_umap'][:, 0]
@@ -278,21 +520,67 @@ def cluster_cells(anno_df, nn=15, metric='cosine'):
     # anno_df.obs.to_csv('../../output/plots/clusters.csv')
     sc.pl.umap(anno_df, color='louvain')
     return anno_df
-    # treatments = anno_df.obs['treatment'].unique()
-    # clusters = anno_df.obs['louvain'].unique()
 
-    # anno_df.obs.plot.scatter('umap1', 'umap2', anno_df.obs['louvain'],
-    #                          marker=anno_df.obs['treatment'])
-    # cell_umap = umap.UMAP(metric='cosine')
-    # cell_umap = cell_umap.fit(control_anno.X)
-    # treatment_cords = cell_umap.transform(treatment_df.X)
-    # embeddings = np.vstack((cell_umap.embedding_, treatment_cords))
-    # cells = np.hstack((control_anno.obs.index.values,
-    #                    treatment_df.obs.index.values))
-    # combined_expr = np.vstack((control_anno.X, treatment_df.X))
-    # combined_obs = pd.concat((control_anno.obs, treatment_df.obs), axis=0)
-    # combined_obs['umap1'] = embeddings[:, 0]
-    # combined_obs['umap2'] = embeddings[:, 1]
+
+def rename_clusters(anno_df, cluster_col='louvain'):
+    """[summary]
+    
+    Parameters
+    ----------
+    anno_df : [type]
+        [description]
+    cluster_col : str, optional
+        [description] (the default is 'louvain', which [default_description])
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    clusters = sorted(anno_df.obs[cluster_col].values.unique())
+    letters = string.ascii_uppercase[0:len(clusters)]
+    int_to_str = {i:a for i, a in zip(clusters, letters)}
+    new_clusters = [int_to_str[i] for i in anno_df.obs[cluster_col]]
+    anno_df.obs.drop(cluster_col, axis=1, inplace=True)
+    anno_df.obs[cluster_col] = new_clusters
+    return anno_df
+
+
+def project_onto_controls(anno_df, neighbors=15):
+    """[summary]
+    
+    Parameters
+    ----------
+    anno_df : [type]
+        [description]
+    neighbors : int, optional
+        [description] (the default is 15, which [default_description])
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    control_anno = filter_cells(anno_df, 'treatment', ['ASW', 'DMSO'])
+
+    cell_umap = umap.UMAP(n_neighbors=neighbors, metric='cosine', min_dist=0.0)
+    cell_umap = cell_umap.fit(control_anno.X)
+
+    all_cords = cell_umap.transform(anno_df.X)
+    k_neighbors = int(anno_df.shape[0] / control_anno.shape[0] * neighbors)
+    neighbors = sklearn.neighbors.NearestNeighbors(k_neighbors)
+    neighbors.fit(all_cords)
+    neighbor_graph = neighbors.kneighbors_graph(all_cords)
+    anno_df.obsm['X_umap'] = all_cords
+    anno_df.obs['umap1'] = all_cords[:, 0]
+    anno_df.obs['umap2'] = all_cords[:, 1]
+    sc.tl.louvain(anno_df, adjacency=neighbor_graph)
+    anno_df = rename_clusters(anno_df, 'louvain')
+    return anno_df
+
+
 
 
     # plt.scatter(cell_umap.embedding_[:, 0], cell_umap.embedding_[:,1], c='blue')
