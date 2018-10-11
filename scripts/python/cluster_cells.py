@@ -1,13 +1,14 @@
-import numpy as np 
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-import scanpy.api as sc
-import umap
-import louvain
-import igraph
 import string
+
+import igraph
+import louvain
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import scanpy.api as sc
+import seaborn as sns
 import sklearn
+import umap
 from scipy import spatial, stats
 
 sc.settings.verbosity = 1
@@ -32,7 +33,8 @@ bad_cells = ["ASW_C07_2016-07-29", "ASW_C01_2016-07-29",
 subset_genes = ['SPU_022598', 'SPU_004767', 'SPU_000826', 'SPU_003102',
                 'SPU_028395', 'SPU_023386']
 
-def create_annotated_df(expr_file, gene_file, cell_file, filter_cells=None):
+def create_annotated_df(expr_file, gene_file, cell_file, filter_cells=None,
+                        transpose_expr=True):
     """Create an AnnData object to hold expression, cell, and gene data.
     
     Parameters
@@ -46,6 +48,9 @@ def create_annotated_df(expr_file, gene_file, cell_file, filter_cells=None):
     filter_cells : list, optional
         Cells to remove from the final AnnData (the default is None, which
         will not filter cells.)
+    tranpose_expr : boolean, optional
+        Whether to transpose the expression matrix. Set true if file is written
+        as (genes x sample) instead of (sample x gene). Default is True.
     
     Returns
     -------
@@ -56,25 +61,33 @@ def create_annotated_df(expr_file, gene_file, cell_file, filter_cells=None):
 
     # read in data
     expr_data = pd.read_csv(expr_file, index_col=0)
+    if transpose_expr:
+        expr_data = expr_data.T
+
     gene_data = pd.read_csv(gene_file, index_col=0)
     gene_data['scaffold'] = [x.replace('model', 'TU') for x in gene_data.index]
     gene_data = gene_data.set_index('scaffold')  # this is filling with NaN
 
     cell_data = pd.read_csv(cell_file, index_col=0)
 
+    # only keep cells found in both cell data and expr data
+    keep_cells = list(set(cell_data.index).intersection(expr_data.index))
+
     # remove non-PMC cells
     if filter_cells is not None:
-        keep_cells = [x for x in cell_data.index if x not in filter_cells]
-        cell_data = cell_data.filter(keep_cells, axis=0)
-        expr_data = expr_data.filter(keep_cells, axis=1)
+        keep_cells = [x for x in keep_cells if x not in filter_cells]
+        
+    cell_data = cell_data.filter(keep_cells, axis=0)
+    expr_data = expr_data.filter(keep_cells, axis=0)
 
     # remove genes that are not in both annotation and and expression datasets 
     keep_genes = list(set(expr_data.index).intersection(gene_data.index))
     gene_data = gene_data.filter(keep_genes, axis=0)
-    expr_data = expr_data.filter(keep_genes, axis=0)
+    expr_data = expr_data.filter(keep_genes, axis=1)
+
 
     # create anno df formatted cells x genes 
-    anno_df = sc.AnnData(expr_data.T.values, obs=cell_data, var=gene_data)
+    anno_df = sc.AnnData(expr_data.values, obs=cell_data, var=gene_data)
     return anno_df
 
 def filter_cells(anno_data, cell_col, values):
@@ -591,4 +604,3 @@ def project_onto_controls(anno_df, neighbors=15):
     # color_dict = {'ASW': 'blue', 'DMSO': 'red'}
     # umap_df.plot.scatter('umap1', 'umap2', c=[color_dict[x] for x in control_anno.obs['treatment']])
     # plt.show()
-    
