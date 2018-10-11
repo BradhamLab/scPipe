@@ -234,8 +234,19 @@ def ridge_plot(anno_df, gene_name, cluster_col='louvain', mask_zeros=True):
 
 
 # TODO document
-def plot_de_genes(anno_df, de_results, comparison='louvain', n_genes=10):
-    perc_zero = [sum(x != 0) / len(x) for x in anno_df.X]
+def plot_de_genes(anno_df, de_results, qthresh=0.001, zero_thresh=0.25,
+                  comparison='louvain', n_genes=10):
+    perc_zero = np.array([sum(x == 0) / len(x) for x in anno_df.X.T])
+    high_genes = anno_df.var.index.values[np.where(perc_zero > zero_thresh)[0]]
+    sig_genes = de_results.index[de_results['qval'] < qthresh]
+    keep_genes = list(set(high_genes).intersection(sig_genes))
+    filtered_de = de_results.filter(keep_genes, axis=0)
+    filtered_de.sort_values('qval', inplace=True)
+    filtered_anno = anno_df[:, keep_genes]
+    filtered_de['gene.name'] = [get_gene_identifier(x, filtered_anno.var)\
+                                for x in filtered_de.index.values]
+    for gene in filtered_de.index.values[0:n_genes]:
+        ridge_plot(filtered_anno, gene, comparison)
 
 
 
