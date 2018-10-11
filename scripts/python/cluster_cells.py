@@ -81,10 +81,9 @@ def create_annotated_df(expr_file, gene_file, cell_file, filter_cells=None,
     expr_data = expr_data.filter(keep_cells, axis=0)
 
     # remove genes that are not in both annotation and and expression datasets 
-    keep_genes = list(set(expr_data.index).intersection(gene_data.index))
+    keep_genes = list(set(expr_data.columns).intersection(gene_data.index))
     gene_data = gene_data.filter(keep_genes, axis=0)
     expr_data = expr_data.filter(keep_genes, axis=1)
-
 
     # create anno df formatted cells x genes 
     anno_df = sc.AnnData(expr_data.values, obs=cell_data, var=gene_data)
@@ -232,6 +231,12 @@ def ridge_plot(anno_df, gene_name, cluster_col='louvain', mask_zeros=True):
         get_gene_identifier(gene_name, anno_df.var)))
     plt.show()
     plt.cla()
+
+
+# TODO document
+def plot_de_genes(anno_df, de_results, comparison='louvain', n_genes=10):
+    perc_zero = [sum(x != 0) / len(x) for x in anno_df.X]
+
 
 
 #TODO document
