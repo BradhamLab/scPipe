@@ -415,36 +415,10 @@ def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
         out = {'observed': count_table, 'expected': expectation,
                 'pvals': results.pvalue, 'pvals.adj': adj_pvals}
 
-def cyndi_format(n_colors):
-    """
-    Set matplotlib parameters to cyndi's likings.
-
-    Parameters
-    ----------
-        n_colors : int
-            Number of colors to cycle through.
-    """
-    from cycler import cycler
-    plt.style.use(['dark_background'])
-    asw_hex = '#0a66fc'
-    chlorate_hex = '#810f7c'
-    dmso_hex = '#8cb8ff'
-    mk_hex = '#f24343'
-    if n_colors == 2:
-        plt.rc('axes', prop_cycle=cycler('color', [chlorate_hex, mk_hex]))
-    elif n_colors in [3, 4]:
-        treatment_colors = [asw_hex, chlorate_hex, dmso_hex, mk_hex]
-        if n_colors == 3:
-            treatment_colors = [asw_hex, chlorate_hex, mk_hex]
-        plt.rc('axes', prop_cycle=cycler('color', treatment_colors))
-    else:
-        plt.rc('axes', prop_cycle=cycler('color', ['#008fd5', '#fc4f30',
-               '#e5ae38', '#6d904f', '#8b8b8b', '#810f7c']))
-    plt.grid(which='both', color='#c1c1c1', alpha=0.75)
-    plt.rcParams['figure.edgecolor'] = '#000000'
-    plt.rcParams['axes.facecolor'] = '#000000'
+    return out
 
 
+# TODO document
 def plot_expectation_difference(observed, expected, normalize=False,
                                 compare_col='treatment', p_values=None):
     """
@@ -468,7 +442,21 @@ def plot_expectation_difference(observed, expected, normalize=False,
     [type]
         [description]
     """
+    cyndi = False
+    plt.rc('axes.spines', top=False, bottom=False, right=False,
+            left=False)
 
+    column_order = sorted(observed.columns.values)
+    if 'Control' in column_order:
+        column_order = ['Control'] + [x for x in column_order if\
+                                      x != 'Control']
+    if cyndi:
+        cyndi_format(observed.shape[1])
+        difference = observed.apply(lambda x: x / np.sum(x) * 100, 0)
+        difference = difference[column_order]
+        ylab = 'Percentage Count'
+
+    else:
     plt.style.use('fivethirtyeight')
     if not normalize:
         # raw count difference
@@ -477,14 +465,14 @@ def plot_expectation_difference(observed, expected, normalize=False,
     else:
         # calculate percent error 
         difference = (observed - expected) / (expected) * 100
-        ylab = 'Percent Error'
+            ylab = 'Deviation from Expectation'
     
     # treat categorical data as strings
     difference.rename(columns=str, inplace=True)
     difference['Cluster'] = difference.index.values
     plot_data = pd.melt(difference, id_vars='Cluster')
     figure = sns.barplot(x='Cluster', y='value', hue=compare_col,
-                         data=plot_data)
+                         data=plot_data, hue_order=column_order)
 
     # fix axes
     if normalize:
@@ -495,18 +483,34 @@ def plot_expectation_difference(observed, expected, normalize=False,
 
     # fix legend
     figure.legend_.set_title(compare_col[0].upper() + compare_col[1:])
-    figure.legend_.set_frame_on(False)
+    # figure.legend_.set_frame_on(False)
 
     # add denetors for statistically significant deviations
+    
     if p_values is not None:
+        ydiv = max((plot_data['value'].max() - plot_data['value'].min()) * 0.01,
+                    0)
         for i, p in enumerate(p_values):
-            if p < 0.5:
+            if p < 0.05:
                 marker='*'
                 if p < 0.01:
                     marker='**'
                 figure.annotate(marker,
                                 xy=(i, np.max(difference.iloc[i, :-1])),
                                 horizontalalignment='center')
+            n = observed.iloc[i, :].sum()
+            text_div = -1 * np.sign(difference.iloc[i, :-1][-1]) * ydiv
+            vert_align = 'top'
+            if  text_div > 0:
+                vert_align = 'bottom'
+            figure.annotate('(n={})'.format(n),
+                             xy=(i, 0),
+                             xycoords='data',
+                             xytext=(i + 0.5, text_div),
+                             textcoords='data',
+                             horizontalalignment='right',
+                             verticalalignment=vert_align,
+                             size='x-small')
     
     return figure
 
