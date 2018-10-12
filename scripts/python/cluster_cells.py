@@ -328,7 +328,7 @@ def variable_genes(anno_df, percentile=0.75, ignore_zeros=True):
 
 
 def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
-                     compare_col='treatment'):
+                     compare_col='treatment', merge_cols=None):
     """
     Compare cell make-up between identified clusters.
     
@@ -376,9 +376,18 @@ def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
 
     count_table = pd.crosstab(anno_df.obs[cluster_col],
                               anno_df.obs[compare_col])
+    if merge_cols is not None and isinstance(merge_cols, dict):
+        for key, columns in merge_cols.items():
+            try:
+                count_table[key] = count_table[columns].sum(axis=1)
+            except KeyError:
+                raise('Unknown columns: []'.format(columns))
+            count_table.drop(columns, axis=1, inplace=True)
+        count_table = count_table[sorted(count_table.columns.values)]
+    
     
     # calculate probabilities for comparison values
-    probabilites = np.sum(count_table, axis=0) / np.sum(count_table.values)
+    probabilities = np.sum(count_table, axis=0) / np.sum(count_table.values)
 
     # calculate total number of cells per cluster in comparison
     group_counts = np.sum(count_table, axis=1)
@@ -386,22 +395,51 @@ def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
     # matrix multipy cluster counts and condition probabilities to get
     # expected counts
     expectation = group_counts.values.reshape((count_table.shape[0], 1))\
-                  @ probabilites.values.reshape((1, count_table.shape[1]))
+                  @ probabilities.values.reshape((1, count_table.shape[1]))
     expectation = pd.DataFrame(data=expectation, index=count_table.index,
                                columns=count_table.columns)
 
-    # TODO do comparison off of original p-values
-    # TODO check pairwise implementation 
-    if comparisons is not None:
-        out = {}
-        for each in comparisons:
-            # perform g-test. TODO: look into degrees of freedom
-            results = stats.power_divergence(count_table[list(each)],
-                                             expectation[list(each)],
-                                             axis=1, lambda_='log-likelihood')
+    # perform tests of independence between treatments and 
+    results = stats.power_divergence(count_table, expectation,
+                                     axis=1, lambda_='log-likelihood')
 
-            adj_pvals = results.pvalue * len(comparisons)\
+    out = {'gtest': {'observed': count_table, 'expected': expectation,
+                     'pvals': results.pvalue,
+                     'pvals.adj': results.pvalue * count_table.shape[0]}}
+
+    if comparisons is not None: # perform odds-ratio/fisher exact tests
+        fisher_out = {}
+        for each in comparisons:
+            if len(each) != 2:
+                msg = ('Comparisons must be pairwise. Received'
+                       ' {} groups: {}'.format(len(each), each))
+                raise ValueError(msg)
+            
+            pairwise = count_table[list(each)]
+            out_key = '-'.join(each)
+            fisher_out[out_key] = {'odds': np.ones(count_table.shape[0]),
+                                   'pvals': np.ones(count_table.shape[0]),
+                                   'pvals.adj': np.ones(count_table.shape[0]),
+                                   'cluster': count_table.index.values}
+            for i, cluster in enumerate(pairwise.index.values):
+
+                # create a 2 x 2 contigency table between treatment comparisons
+                # and cluster membership. Counts are pairwise between treatments
+                # and cluster X membership vs. not X
+                test_cluster = pairwise.loc[cluster, :]
+                other_clusters = [x for x in pairwise.index if x != cluster]
+                not_cluster = pairwise.loc[other_clusters, :].sum()
+                contingency = pd.concat((test_cluster, not_cluster), axis=1)
+
+                # perform fisher exact's test
+                odds, pval = stats.fisher_exact(contingency.values)
+                fisher_out[out_key]['odds'][i] = odds
+                fisher_out[out_key]['pvals'][i] = pval
+                fisher_out[out_key]['pvals.adj'][i] = pval * len(comparisons)\
                                        * count_table.shape[0]
+            out['fisher'] = fisher_out
+            
+    return out
 
             out['-'.join(list(each))] = {'observed': count_table[list(each)],
                                          'expected': expectation[list(each)],
