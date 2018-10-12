@@ -3,6 +3,7 @@ import string
 import igraph
 import louvain
 import matplotlib.pyplot as plt
+from matplotlib.text import OffsetFrom
 import numpy as np
 import pandas as pd
 import scanpy.api as sc
@@ -173,7 +174,7 @@ def get_gene_identifier(scaffold, gene_df):
 
     if not pd.isnull(gene_df.loc[scaffold, 'UniProt.Name']):
         return gene_df.loc[scaffold, 'UniProt.Name'].split('_')[0]
-    elif not pd.isnull(gene_df.loc[scaffold, 'Uniprot.ID']):
+    elif not pd.isnull(gene_df.loc[scaffold, 'UniProt.ID']):
         return gene_df.loc[scaffold, 'UniProt.ID']
     elif not pd.isnull(gene_df.loc[scaffold, 'SPU']):
         return gene_df.loc[scaffold, 'SPU']
@@ -203,19 +204,28 @@ def ridge_plot(anno_df, gene_name, cluster_col='louvain', mask_zeros=True):
     gene_df = pd.DataFrame(data=gene_df.X,
                             index=gene_df.obs.index,
                             columns=gene_df.var.index)
+
     gene_df.columns = ['x']
     if mask_zeros:
         print("Creating ridge plots with masked zero counts. Set `mask_zeros=False` to keep zeros.")
         gene_df['x'] = gene_df['x'].where(gene_df['x']> 0)
-    gene_df[cluster_col] = anno_df.obs[cluster_col]
+    gene_df[cluster_col] = pd.Series(anno_df.obs[cluster_col], dtype='category')
 
     # five thirty eight colors
     colors = ['#008fd5', '#fc4f30', '#e5ae38', '#6d904f', '#8b8b8b', '#810f7c']
-    sns.set(style="white", rc={"axes.facecolor": (0, 0, 0, 0)})
+    if cyndi:
+        sns.set(style="white", rc={"axes.facecolor": (0, 0, 0, 0),
+                                "figure.facecolor": 'black',
+                                "axes.labelcolor": 'white',
+                                "text.color": "white",
+                                "xtick.color": "white"})
+    else:
+        sns.set(style="white", rc={"axes.facecolor": (0, 0, 0, 0))
     facet = sns.FacetGrid(data=gene_df, row=cluster_col, hue=cluster_col,
-                          palette=colors, aspect=5, height=1)
+                          palette=colors, aspect=5, height=1,
+                          hue_order=['A', 'B', 'C', 'D', 'E', 'F'])
     facet.map(sns.kdeplot, 'x', clip_on=False, shade=True, alpha=1, lw=1.5, bw=.2)
-    facet.map(sns.kdeplot, 'x', clip_on=False, color="w", lw=2, bw=.2)
+    facet.map(sns.kdeplot, 'x', clip_on=False, color="black", lw=2, bw=.2)
     facet.map(plt.axhline, y=0, lw=2, clip_on=False)
 
     facet.map(label_kde, 'x')
@@ -234,8 +244,20 @@ def ridge_plot(anno_df, gene_name, cluster_col='louvain', mask_zeros=True):
 
 
 # TODO document
-def plot_de_genes(anno_df, de_results, comparison='louvain', n_genes=10):
-    perc_zero = [sum(x != 0) / len(x) for x in anno_df.X]
+def plot_de_genes(anno_df, de_results, qthresh=0.001, zero_thresh=0.25,
+                  comparison='louvain', n_genes=10):
+    perc_zero = np.array([sum(x == 0) / len(x) for x in anno_df.X.T])
+    high_genes = anno_df.var.index.values[np.where(perc_zero > zero_thresh)[0]]
+    sig_genes = de_results.index[de_results['qval'] < qthresh]
+    keep_genes = list(set(high_genes).intersection(sig_genes))
+    filtered_de = de_results.filter(keep_genes, axis=0)
+    filtered_de.sort_values('qval', inplace=True)
+    filtered_anno = anno_df[:, keep_genes]
+    filtered_de['gene.name'] = [get_gene_identifier(x, filtered_anno.var)\
+                                for x in filtered_de.index.values]
+    for gene in filtered_de.index.values[0:n_genes]:
+        ridge_plot(filtered_anno, gene, comparison)
+    
 
 
 
@@ -258,8 +280,9 @@ def plot_ranked_genes(anno_df, cluster_col='louvain', n_genes=10):
     clusters = sorted(anno_df.obs[cluster_col].values.unique())
     best_genes = set()
     for each in clusters:
-        ridge_plot(anno_df, ranked_genes['names'][each][0])
-        best_genes = best_genes.union(ranked_genes['names'][each])
+        for i in range(n_genes):
+            ridge_plot(anno_df, ranked_genes['names'][each][i])
+            best_genes = best_genes.union(ranked_genes['names'][each])
 
     # heatmap_data = pd.DataFrame(data=anno_df[:, list(best_genes)].X,
     #                             index=anno_df.obs.index,
@@ -328,7 +351,7 @@ def variable_genes(anno_df, percentile=0.75, ignore_zeros=True):
 
 
 def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
-                     compare_col='treatment'):
+                     compare_col='treatment', merge_cols=None):
     """
     Compare cell make-up between identified clusters.
     
@@ -376,9 +399,18 @@ def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
 
     count_table = pd.crosstab(anno_df.obs[cluster_col],
                               anno_df.obs[compare_col])
+    if merge_cols is not None and isinstance(merge_cols, dict):
+        for key, columns in merge_cols.items():
+            try:
+                count_table[key] = count_table[columns].sum(axis=1)
+            except KeyError:
+                raise('Unknown columns: []'.format(columns))
+            count_table.drop(columns, axis=1, inplace=True)
+        count_table = count_table[sorted(count_table.columns.values)]
+        
     
     # calculate probabilities for comparison values
-    probabilites = np.sum(count_table, axis=0) / np.sum(count_table.values)
+    probabilities = np.sum(count_table, axis=0) / np.sum(count_table.values)
 
     # calculate total number of cells per cluster in comparison
     group_counts = np.sum(count_table, axis=1)
@@ -386,36 +418,127 @@ def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
     # matrix multipy cluster counts and condition probabilities to get
     # expected counts
     expectation = group_counts.values.reshape((count_table.shape[0], 1))\
-                  @ probabilites.values.reshape((1, count_table.shape[1]))
+                  @ probabilities.values.reshape((1, count_table.shape[1]))
     expectation = pd.DataFrame(data=expectation, index=count_table.index,
                                columns=count_table.columns)
 
-    # TODO do comparison off of original p-values
-    # TODO check pairwise implementation 
-    if comparisons is not None:
-        out = {}
+    # perform tests of independence between treatments and 
+    results = stats.power_divergence(count_table, expectation,
+                                     axis=1, lambda_='log-likelihood')
+
+    out = {'gtest': {'observed': count_table, 'expected': expectation,
+                     'pvals': results.pvalue,
+                     'pvals.adj': results.pvalue * count_table.shape[0]}}
+
+    if comparisons is not None: # perform odds-ratio/fisher exact tests
+        fisher_out = {}
         for each in comparisons:
-            # perform g-test. TODO: look into degrees of freedom
-            results = stats.power_divergence(count_table[list(each)],
-                                             expectation[list(each)],
-                                             axis=1, lambda_='log-likelihood')
+            if len(each) != 2:
+                msg = ('Comparisons must be pairwise. Received'
+                       ' {} groups: {}'.format(len(each), each))
+                raise ValueError(msg)
+            
+            pairwise = count_table[list(each)]
+            out_key = '-'.join(each)
+            fisher_out[out_key] = {'odds': np.ones(count_table.shape[0]),
+                                   'pvals': np.ones(count_table.shape[0]),
+                                   'pvals.adj': np.ones(count_table.shape[0]),
+                                   'cluster': count_table.index.values}
+            for i, cluster in enumerate(pairwise.index.values):
 
-            adj_pvals = results.pvalue * len(comparisons)\
-                                       * count_table.shape[0]
+                # create a 2 x 2 contigency table between treatment comparisons
+                # and cluster membership. Counts are pairwise between treatments
+                # and cluster X membership vs. not X
+                test_cluster = pairwise.loc[cluster, :]
+                other_clusters = [x for x in pairwise.index if x != cluster]
+                not_cluster = pairwise.loc[other_clusters, :].sum()
+                contingency = pd.concat((test_cluster, not_cluster), axis=1)
 
-            out['-'.join(list(each))] = {'observed': count_table[list(each)],
-                                         'expected': expectation[list(each)],
-                                         'pvals': results.pvalue,
-                                         'pvals.adj': adj_pvals}
-    else:
-        results = stats.power_divergence(count_table, expectation,
-                                            axis=1, lambda_='log-likelihood')
-        adj_pvals = results.pvalue * count_table.shape[0]
-
-        out = {'observed': count_table, 'expected': expectation,
-                'pvals': results.pvalue, 'pvals.adj': adj_pvals}
-
+                # perform fisher exact's test
+                odds, pval = stats.fisher_exact(contingency.values)
+                fisher_out[out_key]['odds'][i] = odds
+                fisher_out[out_key]['pvals'][i] = pval
+                fisher_out[out_key]['pvals.adj'][i] = pval * len(comparisons)\
+                                                      * count_table.shape[0]
+            out['fisher'] = fisher_out
+            
     return out
+
+def plot_log_odds(fisher_out):
+    
+    comparisons = list(fisher_out.keys())
+    sorted_comparisons = sorted(comparisons)
+    plot_data = pd.DataFrame(fisher_out[comparisons[0]])
+    plot_data['Comparison'] = comparisons[0]
+    for key in comparisons[1:]:
+        new_df = pd.DataFrame(fisher_out[key])
+        new_df['Comparison'] = key
+        plot_data = pd.concat((plot_data, new_df), axis=0)
+
+    cyndi = True
+    if cyndi:
+        cyndi_format(len(comparisons))
+        plt.grid(False)
+        plt.rc('axes.spines', top=False, bottom=False, right=False,
+            left=False)
+    figure = sns.barplot(data=plot_data, x='cluster', y='odds',
+                         hue='Comparison', hue_order=sorted_comparisons)
+    plt.axhline(y=1, xmax=plot_data.shape[0], linestyle='--')
+
+    xdiv = 1 / (2*(len(comparisons)) + 1)
+    midpoint = len(comparisons) / 2
+    for i in range(plot_data.shape[0]):
+        row = plot_data.iloc[i, :]
+        if row['pvals.adj'] < 0.05:
+            marker='*'
+            if row['pvals.adj'] < 0.01:
+                marker='**'
+            pt = np.where(row['Comparison']==np.array(sorted_comparisons))[0][0]
+            text_div = 0
+            if pt + 1 > midpoint:
+                text_div = (pt) * xdiv
+            elif pt + 1 < midpoint:
+                text_div = -1 * (pt + 1) * xdiv
+            elif pt + 1 == midpoint and len(comparisons) % 2 == 0:
+                text_div = -1 * (pt + 1) * xdiv
+            print(text_div)
+            figure.annotate(marker,
+                            xy=(row.name + text_div, row['odds']),
+                            horizontalalignment='center')
+
+    plt.xlabel('Odds Ratio')
+    plt.ylabel('Cluster')
+
+    
+
+def cyndi_format(n_colors):
+    """
+    Set matplotlib parameters to cyndi's likings.
+
+    Parameters
+    ----------
+        n_colors : int
+            Number of colors to cycle through.
+    """
+    from cycler import cycler
+    plt.style.use(['dark_background'])
+    asw_hex = '#0a66fc'
+    chlorate_hex = '#810f7c'
+    dmso_hex = '#8cb8ff'
+    mk_hex = '#f24343'
+    if n_colors == 2:
+        plt.rc('axes', prop_cycle=cycler('color', [chlorate_hex, mk_hex]))
+    elif n_colors in [3, 4]:
+        treatment_colors = [asw_hex, chlorate_hex, dmso_hex, mk_hex]
+        if n_colors == 3:
+            treatment_colors = [asw_hex, chlorate_hex, mk_hex]
+        plt.rc('axes', prop_cycle=cycler('color', treatment_colors))
+    else:
+        plt.rc('axes', prop_cycle=cycler('color', ['#008fd5', '#fc4f30',
+               '#e5ae38', '#6d904f', '#8b8b8b', '#810f7c']))
+    plt.grid(which='both', color='#c1c1c1', alpha=0.75)
+    plt.rcParams['figure.edgecolor'] = '#000000'
+    plt.rcParams['axes.facecolor'] = '#000000'
 
 
 # TODO document
@@ -457,16 +580,16 @@ def plot_expectation_difference(observed, expected, normalize=False,
         ylab = 'Percentage Count'
 
     else:
-    plt.style.use('fivethirtyeight')
-    if not normalize:
-        # raw count difference
-        difference = observed - expected
-        ylab = 'Count Difference'
-    else:
-        # calculate percent error 
-        difference = (observed - expected) / (expected) * 100
+        plt.style.use('fivethirtyeight')
+        if not normalize:
+            # raw count difference
+            difference = observed - expected
+            ylab = 'Count Difference'
+        else:
+            # calculate percent error 
+            difference = (observed - expected) / (expected) * 100
             ylab = 'Deviation from Expectation'
-    
+
     # treat categorical data as strings
     difference.rename(columns=str, inplace=True)
     difference['Cluster'] = difference.index.values
@@ -514,7 +637,7 @@ def plot_expectation_difference(observed, expected, normalize=False,
     
     return figure
 
-def plot_umap(anno_df, color_col, shape_col):
+def plot_umap(anno_df, color_col=None, shape_col=None):
     """[summary]
     
     Parameters
@@ -527,24 +650,44 @@ def plot_umap(anno_df, color_col, shape_col):
         [description]
     
     """
-
     plt.style.use('fivethirtyeight')
-    figure = sns.scatterplot(data=clustered.obs, x='umap1', y='umap2',
-                             hue=color_col, style=shape_col, s=100)
-    patches, labels = figure.get_legend_handles_labels()
-    figure.legend_.remove()
+    cyndi_format(len(anno_df.obs[color_col].unique()))
+    
+    figure = sns.scatterplot(data=anno_df.obs.sort_values(color_col),
+                             x='umap1', y='umap2', hue=color_col,
+                             style=shape_col, s=100)
 
-    color_idx = [i for i, x in enumerate(labels) if x == color_col][0]
-    shape_idx = [i for i, x in enumerate(labels) if x == shape_col][0]
-    labels[color_idx] = labels[color_idx][0].upper() + labels[color_idx][1:]
-    labels[shape_idx] = labels[shape_idx][0].upper() + labels[shape_idx][1:]
+    if color_col is not None and shape_col is not None:
+        patches, labels = figure.get_legend_handles_labels()
+        figure.legend_.remove()
+        color_idx = [i for i, x in enumerate(labels) if x == color_col][0]
+        shape_idx = [i for i, x in enumerate(labels) if x == shape_col][0]
+        labels[color_idx] = labels[color_idx][0].upper() + labels[color_idx][1:]
+        labels[shape_idx] = labels[shape_idx][0].upper() + labels[shape_idx][1:]
 
-    label_order = np.argsort(labels[color_idx:shape_idx])
-    color_legend = plt.legend(patches[color_idx:shape_idx],
-                              labels[color_idx:shape_idx], loc=0,
-                              frameon=False)
-    figure.legend(patches[shape_idx:], labels[shape_idx:], loc=4, frameon=False)
-    plt.gca().add_artist(color_legend)
+        color_order = np.argsort(labels[color_idx + 1:shape_idx])
+        color_order = [color_idx] + list(color_order + 1)
+        color_legend = plt.legend(
+                         [patches[color_idx:shape_idx][x] for x in color_order],
+                         [labels[color_idx:shape_idx][x] for x in color_order],
+                         loc=0, frameon=False)
+        shape_order = np.argsort(labels[shape_idx + 1:])
+        shape_order = [shape_idx] + list(shape_order + 1)
+        figure.legend(
+                     [patches[shape_idx:][shape_order][x] for x in color_order],
+                     [labels[shape_idx:][shape_order][x] for x in color_order],
+                     loc=4, frameon=False)
+        plt.gca().add_artist(color_legend)
+
+    elif color_col is not None or shape_col is not None:
+        patches, labels = figure.get_legend_handles_labels()
+        labels[0] = labels[0][0].upper() + labels[0][1:]
+        figure.legend_.remove()
+        label_order = np.argsort(labels[1:])
+        label_order = [0] + list(label_order + 1)
+        figure.legend([patches[x] for x in label_order],
+                      [labels[x] for x in label_order], loc=0,
+                      frameon=False)
     plt.show()
     plt.cla()
 
