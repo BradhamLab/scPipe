@@ -36,7 +36,7 @@ def cyndi_format(n_colors):
     else:
         plt.rc('axes', prop_cycle=cycler('color', ['#008fd5', '#fc4f30',
                '#e5ae38', '#6d904f', '#8b8b8b', '#810f7c']))
-        if cyndi:
+
     plt.rcParams["axes.facecolor"] = (0, 0, 0, 0)
     plt.rcParams["figure.facecolor"] = 'black'
     plt.rcParams["axes.labelcolor"] ='white'
@@ -280,7 +280,7 @@ def ridge_plot(anno_df, gene_name, cluster_col='louvain', mask_zeros=True):
     facet.map(label_kde, 'x')
 
     # Set the subplots to overlap
-    facet.fig.subplots_adjust(hspace=-.25)
+    facet.fig.subplots_adjust(hspace=-0.25)
 
     # Remove axes details that don't play well with overlap
     facet.set_titles("")

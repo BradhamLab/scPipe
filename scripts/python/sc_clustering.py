@@ -31,7 +31,6 @@ bad_cells = ["ASW_C07_2016-07-29", "ASW_C01_2016-07-29",
 subset_genes = ['SPU_022598', 'SPU_004767', 'SPU_000826', 'SPU_003102',
                 'SPU_028395', 'SPU_023386']
 
-
 def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
                      compare_col='treatment', merge_cols=None):
     """
@@ -111,7 +110,7 @@ def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
             try:
                 count_table[key] = count_table[columns].sum(axis=1)
             except KeyError:
-                raise('Unknown columns: []'.format(columns))
+                raise('Unknown columns: {}'.format(columns))
             count_table.drop(columns, axis=1, inplace=True)
         count_table = count_table[sorted(count_table.columns.values)]
         
