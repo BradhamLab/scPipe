@@ -2,6 +2,9 @@ import pandas as pd
 import numpy as np
 import scanpy.api as sc
 
+from sklearn import mixture
+from scipy import linalg
+
 def get_gene_identifier(scaffold, gene_df):
     """
     Get gene name associated with scaffold id.
@@ -11,14 +14,14 @@ def get_gene_identifier(scaffold, gene_df):
     scaffold : str
         Scaffold transcript id in `gene_df` as an index value.
     gene_df : pd.DataFrame
-        A (gene x feature) dataframe with 'UniProt.Name', 'UniProt.ID', and
-        'SPU' columns containing different gene id/name values.
+        A (gene x feature) dataframe with 'UniProt.Name', 'UniProt.ID', 'SPU',
+        and 'NCBI.ID' columns containing different gene id/name values.
     
     Returns
     -------
     str
         Gene name associated with `scaffold` id. Name priority follows
-        'UniProt.Name', 'Uniprot.ID', 'SPU', `scaffold` in order. 
+        'UniProt.Name', 'Uniprot.ID', 'SPU', 'NCBI.ID', `scaffold` in order. 
     """
 
     if not pd.isnull(gene_df.loc[scaffold, 'UniProt.Name']):
@@ -27,6 +30,8 @@ def get_gene_identifier(scaffold, gene_df):
         return gene_df.loc[scaffold, 'UniProt.ID']
     elif not pd.isnull(gene_df.loc[scaffold, 'SPU']):
         return gene_df.loc[scaffold, 'SPU']
+    elif not pd.isnull(gene_df.loc[scaffold, 'NCBI.ID']):
+        return gene_df.loc[scaffold, 'NCBI.ID']
     else:
         return scaffold
 
@@ -88,7 +93,8 @@ def create_annotated_df(expr_file, gene_file, cell_file, filter_cells=None,
     anno_df = sc.AnnData(expr_data.values, obs=cell_data, var=gene_data)
     return anno_df
 
-def filter_cells(anno_data, cell_col, values):
+
+def filter_cells(anno_data, cell_col, filter_func):
     """
     Filter an annotated data frame to  cells only.
     
@@ -98,20 +104,22 @@ def filter_cells(anno_data, cell_col, values):
         Annotated data frame with cell annotations denoting treatment.
     cell_col : string
         Name of column in `sc.AnnData.obs` containing features to filter on.
-    values : list, string
-        list of strings denoting values of interest.
+    filter_func : function
+        Function that takes values from `cell_col`, and returns a boolean value
+        whether a condition is met. Rows where the function returns True will
+        be kept, while rows evaluated as False will be removed. 
     
     Returns
     -------
     sc.AnnData
-        Annotated dataframe with samples filtered cells.
+        Annotated dataframe with filtered cells.
     """
     keep_cells = [x for x in anno_data.obs.index if\
-                  anno_data.obs.loc[x, cell_col] in values]
+                  filter_func(anno_data.obs.loc[x, cell_col])]
     return anno_data[keep_cells, ]
 
 
-def filter_genes(anno_data, gene_col, values):
+def filter_genes(anno_data, gene_col, filter_func):
     """
     Filter an annotated data frame to  cells only.
     
@@ -121,16 +129,18 @@ def filter_genes(anno_data, gene_col, values):
         Annotated data frame with cell annotations denoting treatment.
     gene_col : string
         Name of column in `sc.AnnData.var` containing features to filter on.
-    values : list, string
-        list of strings denoting values of interest.
+    filter_func : function
+        Function that takes values from `gene_col`, and returns a boolean value
+        whether a condition is met. Rows where the function returns True will
+        be kept, while rows evaluated as False will be removed.
     
     Returns
     -------
     sc.AnnData
-        Annotated dataframe with samples filtered genes.
+        Annotated dataframe with filtered genes.
     """
     keep_genes = [x for x in anno_data.var.index if\
-                  anno_data.var.loc[x, gene_col] in values]
+                  filter_func(anno_data.var.loc[x, gene_col])]
     return anno_data[:, keep_genes]
 
 
@@ -204,3 +214,51 @@ def variable_genes(anno_df, percentile=0.75, ignore_zeros=True):
     start_idx = int(len(sorted_dispersion)*percentile)
 
     return anno_df.var.index.values[start_idx:]
+
+
+def binarize_expression(anno_df, filter_zeros):
+    """
+    Binarize gene expression in cells by fitting gaussian mixture models.
+    
+    Parameters
+    ----------
+    anno_df : sc.AnnData
+        Annotated dataframe of expression data.
+    filter_zeros : boolean
+        Whether to remove zeros before fitting mixture model.
+    
+    Returns
+    -------
+    sc.AnnData
+        Annotated dataframe with expression data set to 1 or 0 depending whether
+        the gene is 'on' or 'off', respectively, in each cell.
+    """
+
+
+
+    return None
+
+def exp_gaus_mixture(X):
+    """
+    Fit data to a mixture of an exponential and gaussian distribution.
+    
+    Parameters
+    ----------
+    X : [type]
+        [description]
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    #  use count data for mixtures
+    counts, bins, patches = plt.hist(X, bins=30)
+    mode_idx = np.where(counts == np.max(counts[1:]))[0][0]
+    normal_max = bins[-1]
+    normal_min = bins[mode_idx - len(bins[mode_idx:])]
+    sd = np.std(X[X >= normal_min])
+    mean = np.mean(X[X >= normal_min])
+
+    return 0
