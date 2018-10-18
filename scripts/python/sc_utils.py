@@ -2,8 +2,11 @@ import pandas as pd
 import numpy as np
 import scanpy.api as sc
 
-from sklearn import mixture
-from scipy import linalg
+from skimage.filters import threshold_otsu
+from scipy import linalg, stats
+import pomegranate as pmg
+
+from matplotlib import pyplot as plt
 
 def get_gene_identifier(scaffold, gene_df):
     """
@@ -238,9 +241,13 @@ def binarize_expression(anno_df, filter_zeros):
 
     return None
 
-def exp_gaus_mixture(X):
+def noise_signal_mixture(X):
     """
-    Fit data to a mixture of an exponential and gaussian distribution.
+    Fit data to a mixture model to identify signal and technical noise.
+
+    Fit data to a mixture model where technical noise of scRNAseq profiles is
+    modelled using a Poisson distribution, and true expression is modelled as a
+    Gaussian Distribution. 
     
     Parameters
     ----------
@@ -254,11 +261,57 @@ def exp_gaus_mixture(X):
     """
 
     #  use count data for mixtures
-    counts, bins, patches = plt.hist(X, bins=30)
+    counts, bins = np.histogram(X, bins=30)
     mode_idx = np.where(counts == np.max(counts[1:]))[0][0]
-    normal_max = bins[-1]
-    normal_min = bins[mode_idx - len(bins[mode_idx:])]
-    sd = np.std(X[X >= normal_min])
-    mean = np.mean(X[X >= normal_min])
+    normal_spread = bins[-1] - bins[mode_idx]
+    normal_min = bins[np.where(bins < bins[mode_idx] - normal_spread)[0][-1]]
 
-    return 0
+    signal = pmg.NormalDistribution.from_samples(X[X >= normal_min])
+
+    pois_lambda = np.mean(X[X < normal_min])
+
+    noise = pmg.PoissonDistribution(pois_lambda)
+    gmm = pmg.GeneralMixtureModel([noise, signal])
+    gmm = gmm.fit(X)
+
+    return gmm
+
+
+def threshold_expression(X, method='otsu'):
+    """
+    Threshold gene expression using pre-defined methods.
+    
+    Parameters
+    ----------
+        X: np.array
+            Expression profile across cells.
+    
+        method: str, optional
+             Method to determine expression threshold. Default is otsu, which
+             will perform Otsu thresholding. Additional method is 'mixture',
+             which fits a mixture model to differentiate technical noise from
+             signal.
+
+    Returns
+    -------
+        np.array
+            Thresholded expression profile with filtered values set to zero.
+    """
+
+    threshold = 0
+    if method == 'otsu':
+        threshold = threshold_otsu(X)
+    elif method == 'mixture':
+        gmm = noise_signal_mixture(X)
+        space = np.arange(0, np.max(X), 0.1).reshape(-1, 1)
+        probabilities = gmm.predict_proba(space)
+        idx = 0
+        while probabilities[idx][0] > probabilities[idx][1] and\
+        idx < probabilities.shape[0]:
+            idx += 1
+        threshold = space[idx]
+    else:
+        raise ValueError("Unsupported method: {}".format(method))
+    print(threshold)
+    X[X < threshold] = 0
+    return X
