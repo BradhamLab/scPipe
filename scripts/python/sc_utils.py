@@ -251,13 +251,14 @@ def noise_signal_mixture(X):
     
     Parameters
     ----------
-    X : [type]
-        [description]
+    X : numpy.array
+        single-cell expression profile across cells.
     
     Returns
     -------
-    [type]
-        [description]
+    pomegranate.GeneralMixtureModel
+        General mixture model with two components: a Poisson distribution to
+        model technical noise, and a Gaussian distribution to model signal.
     """
 
     #  use count data for mixtures
@@ -268,7 +269,7 @@ def noise_signal_mixture(X):
 
     signal = pmg.NormalDistribution.from_samples(X[X >= normal_min])
 
-    pois_lambda = np.mean(X[X < normal_min])
+    pois_lambda = max(np.mean(X[X < normal_min]), sum(X==0)/len(X))
 
     noise = pmg.PoissonDistribution(pois_lambda)
     gmm = pmg.GeneralMixtureModel([noise, signal])
@@ -294,8 +295,9 @@ def threshold_expression(X, method='otsu'):
 
     Returns
     -------
-        np.array
-            Thresholded expression profile with filtered values set to zero.
+        tuple, (np.array, float)
+            Tuple of thresholded expression profile with filtered values set to
+            zero and discovered threshold.
     """
 
     threshold = 0
@@ -306,12 +308,11 @@ def threshold_expression(X, method='otsu'):
         space = np.arange(0, np.max(X), 0.1).reshape(-1, 1)
         probabilities = gmm.predict_proba(space)
         idx = 0
-        while probabilities[idx][0] > probabilities[idx][1] and\
+        while probabilities[idx][0] > probabilities[idx][1] and \
         idx < probabilities.shape[0]:
             idx += 1
-        threshold = space[idx]
+        threshold = space[idx][0]
     else:
         raise ValueError("Unsupported method: {}".format(method))
-    print(threshold)
     X[X < threshold] = 0
-    return X
+    return (X, threshold)
