@@ -416,3 +416,56 @@ def plot_log_odds(fisher_out):
     plt.xlabel('Odds Ratio')
     plt.ylabel('Cluster')
     return figure
+
+
+def plot_mixture(X, gmm, gene_name=None):
+    """
+    Plot the noise and signal mixture model.
+    
+    Parameters
+    ----------
+    X : numpy.array
+        Array of single-cell gene expression profile for a single gene.
+    gmm : pomegranate.GeneralMixtureModel
+        General mixture model modelling noise and signal portions of
+        single-cell expression profile.
+    gene_name : str, optional
+        Name of gene being modeled. Name will appear in plot title. Default is
+        None, and no gene name will appear.
+    
+    Returns
+    -------
+    matplotlib.Axes
+        Plot of noise-signal mixture model.
+    """
+    if len(X.shape) == 1:
+        X = X.reshape(-1, 1)
+    sns.set_palette('deep')
+    colors = sns.color_palette()
+    space = np.arange(0, np.max(X), 0.1)
+    sns.distplot(a=X, bins=30, kde=False, rug=False, norm_hist=True,
+                 color=colors[4])
+    noise_lambda = gmm.distributions[0].parameters[0]
+    noise_model = 'Poisson($\lambda={:0.2f}$)'.format(noise_lambda)
+    mu, sig = gmm.distributions[1].parameters
+    signal_model = "N($\mu={:0.2f}$, $\sigma={:0.2f}$)".format(mu, sig)
+    plt.plot(space, gmm.distributions[0].probability(space), linestyle=':',
+             label='Noise Model ~ {}'.format(noise_model), color=colors[3],
+             linewidth=3)
+    plt.plot(space, gmm.distributions[1].probability(space), linestyle=':',
+             label='Signal Model ~ {}'.format(signal_model), color=colors[0],
+             linewidth=3)
+    filtered, threshold = sc_utils.threshold_expression(X, method='mixture')
+    plt.axvline(x=threshold, linestyle='--',
+                label='Noise Threshold = {}'.format(threshold), color='black')
+    plt.plot(space, gmm.probability(space), label='Mixture Model',
+             color=colors[4], linewidth=3)
+    plt.legend(fontsize=14, loc=0)
+    plt.xlabel('$\log_2(read counts)$', fontsize=16)
+    plt.ylabel('$p(x)$', fontsize=16)
+    title = "Signal-Noise Mixture Model"
+    if gene_name != None:
+        title += ' for {}'.format(gene_name)
+    plt.title(title, loc='left', fontsize=18)
+
+
