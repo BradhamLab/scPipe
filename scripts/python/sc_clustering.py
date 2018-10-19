@@ -190,7 +190,7 @@ def cluster_cells(anno_df, nn=15, metric='cosine'):
         Annotated dataframe with clustering results.
     """
 
-    sc.pp.neighbors(anno_df, n_neighbors=nn, metric=metric)
+    sc.pp.neighbors(anno_df, n_neighbors=nn, metric=metric, use_rep='X')
     sc.tl.umap(anno_df, min_dist=0.0)
     sc.tl.louvain(anno_df)
     anno_df.obs['umap1'] = anno_df.obsm['X_umap'][:, 0]
