@@ -319,19 +319,26 @@ def threshold_expression(X, method='otsu'):
 
 
 def filter_by_coverage(anno_df, threshold=0.5):
-    """[summary]
+    """
+    Filter genes below a specified dropout percent. 
     
     Parameters
     ----------
-    anno_df : [type]
-        [description]
+    anno_df : sc.AnnData
+        Annotated dataframe of expression data.
     threshold : float, optional
-        [description] (the default is 0.5, which [default_description])
+        Minimum percent of zeros to needed to keep an expression profile from a
+        certain gene. The default is 0.5, which will filter genes with zeros
+        for greater than 50% of measurements.
     
+    Returns
+    -------
+    sc.AnnData
+        Annotated dataframe with low-coverage genes removed.
     """
     coverage = np.array([sum(anno_df.X[:, i] != 0) / anno_df.shape[0] for i in \
                          range(anno_df.shape[1])])
-    keep_genes = anno_df.var.index.values[np.where(coverage > threshold)]
+    keep_genes = anno_df.var.index.values[np.where(coverage >= threshold)]
     return anno_df[:, keep_genes]
 
 
@@ -357,8 +364,8 @@ def correlated_genes(anno_df, genes, threshold, mask_zeros=False,
     
     Returns
     -------
-    [type]
-        [description]
+    pd.DataFrame
+        Dataframe with correlation results and gene annotations. 
     """
 
     expr = pd.DataFrame(data=anno_df.X, columns=anno_df.var.index.values,
