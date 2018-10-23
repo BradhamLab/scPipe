@@ -208,7 +208,7 @@ def variable_genes(anno_df, percentile=0.75, ignore_zeros=True):
     if not ignore_zeros:
         Warning("Keeping zeros when calculating dispersion often leads to NaNs.")
     for i, gene in enumerate(anno_df.var.index):
-        expression = anno_df[:, gene].X
+        expression = np.array(anno_df[:, gene].X)
         if ignore_zeros:
             expression = expression[expression != 0]
         if len(expression) > 0:
@@ -316,3 +316,82 @@ def threshold_expression(X, method='otsu'):
         raise ValueError("Unsupported method: {}".format(method))
     X[X < threshold] = 0
     return (X, threshold)
+
+
+def filter_by_coverage(anno_df, threshold=0.5):
+    """[summary]
+    
+    Parameters
+    ----------
+    anno_df : [type]
+        [description]
+    threshold : float, optional
+        [description] (the default is 0.5, which [default_description])
+    
+    """
+    coverage = np.array([sum(anno_df.X[:, i] != 0) / anno_df.shape[0] for i in \
+                         range(anno_df.shape[1])])
+    keep_genes = anno_df.var.index.values[np.where(coverage > threshold)]
+    return anno_df[:, keep_genes]
+
+
+def correlated_genes(anno_df, genes, threshold, mask_zeros=False,
+                     min_pairwise=None):
+    """
+    Find genes correlated with a set of provided genes.
+    
+    Parameters
+    ----------
+    anno_df : sc.AnnData
+        Annotated dataframe with expression profiles. 
+    genes : list, str
+        List of gene indices to check for correlation relationships.
+    threshold : float
+        $R^2$ threshold for correlation considerations.
+    mask_zeros : [type], optional
+        Whether to consider zeros when calculating correlations.
+    min_pairwise : int, optional
+        Minimum number of observations with pairwise values required for a
+        correlation to be considered valid. Used when `mask_zeros=True`. Default
+        in None.
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+
+    expr = pd.DataFrame(data=anno_df.X, columns=anno_df.var.index.values,
+                        index=anno_df.obs.index.values)
+    if mask_zeros:
+        expr[expr == 0] = None
+
+    corr_mat = expr.corr(min_periods=min_pairwise)
+    result_dict = {'Subset.Gene': [],
+                   'Correlated.Gene': [],
+                   'R2': [],
+                   'R': [],
+                   'Percent.Zero': []}
+    all_genes = set(genes)
+    for x in genes:
+        for y in corr_mat.columns.values:
+            r_square = corr_mat.loc[x, y]**2
+            if r_square >= threshold and r_square != 1:
+                result_dict['Subset.Gene'].append(x)
+                result_dict['Correlated.Gene'].append(y)
+                result_dict['R2'].append(r_square)
+                result_dict['R'].append(corr_mat.loc[x, y])
+                result_dict['Percent.Zero'].append(sum(anno_df[:, y].X == 0) / \
+                                                    anno_df.shape[0])
+                all_genes.add(y)
+    if mask_zeros:
+        anno_df.X[np.isnan(anno_df.X)] = 0
+
+    results = pd.DataFrame(result_dict)
+    results['Subset.Name'] = results.apply(lambda x:
+                              anno_df.var.loc[x['Subset.Gene'], 'UniProt.Name'],
+                              axis=1)
+    results = pd.merge(results, anno_df.var, left_on=results['Correlated.Gene'],
+                   right_on=anno_df.var.index.values)
+    results = results.drop('key_0', axis=1)
+    return results
