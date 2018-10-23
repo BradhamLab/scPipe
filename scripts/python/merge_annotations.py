@@ -71,8 +71,7 @@ def add_kegg_annotations(sample_df, kegg_file):
             data['KEGG.IDs'].append(line[4])
     kegg = pd.DataFrame(data)
     kegg.set_index('evm', inplace=True)
-    return pd.concat([sample_df, ipr], axis=1, join='outer', sort=False)
-
+    return pd.concat([sample_df, kegg], axis=1, join='outer', sort=False)
 
 def add_ncbi_annotations(sample_df, ncbi):
     """
@@ -85,7 +84,7 @@ def add_ncbi_annotations(sample_df, ncbi):
     
 def add_trembl_annotations(sample_df, tremble):
     gene_df = pd.DataFrame(index=uniprot.index.values,
-                           columns=["NCBI.ID"], dtype=str)
+                           columns=["TrEMBL.ID"], dtype=str)
     for idx in ncbi.index.values:
         gene_df.loc[idx, 'TrEMBL.ID'] = ncbi.loc[idx, 'subject'].split('|')[1]
     return pd.concat([sample_df, gene_df], axis=1, join='outer', sort=False)
