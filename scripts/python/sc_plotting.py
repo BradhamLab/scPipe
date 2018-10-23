@@ -469,3 +469,46 @@ def plot_mixture(X, gmm, gene_name=None):
     plt.title(title, loc='left', fontsize=18)
 
 
+def expression_heatmap(anno_df, genes, cluster_cells=True, cluster_genes=True):
+    """[summary]
+    
+    Parameters
+    ----------
+    anno_df : [type]
+        [description]
+    genes : [type]
+        [description]
+    cluster_cells : bool, optional
+        [description] (the default is True, which [default_description])
+    cluster_genes : bool, optional
+        [description] (the default is True, which [default_description])
+    
+    """
+
+    plot_data = anno_df[:, genes]
+    sns.clustermap(plot_data.X, cmap='inferno', row_cluster=cluster_cells,
+                   col_cluster=cluster_genes, standard_scale=1)
+    plt.show()
+
+
+def distribution_plots(X):
+    """[summary]
+    
+    Parameters
+    ----------
+    X : [type]
+        [description]
+    
+    Returns
+    -------
+    [type]
+        [description]
+    """
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
+    sns.distplot(X, bins=30, ax=ax1)
+    sns.distplot(X, bins=30, ax=ax2, hist_kws={'cumulative': True},
+                kde_kws={'cumulative': True})
+
+    return fig
+
+
