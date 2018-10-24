@@ -457,7 +457,8 @@ def plot_mixture(X, gmm, gene_name=None):
              linewidth=3)
     filtered, threshold = sc_utils.threshold_expression(X, method='mixture')
     plt.axvline(x=threshold, linestyle='--',
-                label='Noise Threshold = {}'.format(threshold), color='black')
+                label='Noise Threshold = {:0.2f}'.format(threshold),
+                color='black')
     plt.plot(space, gmm.probability(space), label='Mixture Model',
              color=colors[4], linewidth=3)
     plt.legend(fontsize=14, loc=0)
