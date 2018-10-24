@@ -25,3 +25,7 @@ scripts/tests/*
 
 # ignore __pycache__
 *__pycache__
+
+# ignore R files
+*.RData
+*.Rhistory
