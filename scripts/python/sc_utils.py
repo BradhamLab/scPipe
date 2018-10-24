@@ -75,7 +75,7 @@ def create_annotated_df(expr_file, gene_file, cell_file, filter_cells=None,
     gene_data = pd.read_csv(gene_file, index_col=0)
     gene_data['scaffold'] = [x.replace('model', 'TU') for x in gene_data.index]
     gene_data = gene_data.set_index('scaffold')
-
+    
     # read in cell annotations
     cell_data = pd.read_csv(cell_file, index_col=0)
 
@@ -231,7 +231,7 @@ def variable_genes(anno_df, percentile=0.75, ignore_zeros=True):
     return anno_df.var.index.values[start_idx:]
 
 
-def binarize_expression(anno_df, filter_zeros):
+def binarize_expression(anno_df, method='mixture', overwrite=False):
     """
     Binarize gene expression in cells by fitting gaussian mixture models.
     
@@ -239,8 +239,16 @@ def binarize_expression(anno_df, filter_zeros):
     ----------
     anno_df : sc.AnnData
         Annotated dataframe of expression data.
-    filter_zeros : boolean
-        Whether to remove zeros before fitting mixture model.
+    method : str, optional
+        Method to determine whether a gene is 'on' or 'off' in a given cell.
+        Default is 'mixture', which will fit a Poisson-Gaussian mixture model to
+        distinguish between technical noise and actual signal. See 
+        `threshold_expression()` for all methods.
+    overwrite : boolean, optional
+        Wether to write binarized expression values to original `sc.AnnData`
+        object. Default is `False`, where a copy of the object will be created
+        and original counts will be unmolested. 
+    
     
     Returns
     -------
@@ -248,10 +256,15 @@ def binarize_expression(anno_df, filter_zeros):
         Annotated dataframe with expression data set to 1 or 0 depending whether
         the gene is 'on' or 'off', respectively, in each cell.
     """
+    binarized = anno_df
+    if not overwrite:
+        binarized = anno_df.copy()
+    for gene in binarized.var.index:
+        X, threshold = threshold_expression(np.array(binarized[:, gene].X),
+                                            method)
+        binarized[:, gene].X = X
 
-
-
-    return None
+    return binarized
 
 def noise_signal_mixture(X):
     """
