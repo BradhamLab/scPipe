@@ -137,7 +137,7 @@ def main(in_expr, out_expr, in_anno, out_anno, in_obs):
     """
     data = sc_utils.create_annotated_df(in_expr, in_anno, in_obs)
     expr, genes = collapse(data)
-    expr.to_csv(out_expr)
+    expr.to_csv(out_expr.T)  # transpose to fit expected format in pipeline.
     genes.to_csv(out_anno)
 
 
