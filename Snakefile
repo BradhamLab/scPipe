@@ -110,6 +110,25 @@ rule combine_data:
     script:
         'scripts/python/combine_datasets.py'
 
+# Collapse count matrix and feature annotations down to gene level from
+# transcript level.
+rule collapse_annotations:
+    input:
+        flag=os.path.join(config['dirs']['output'], 'combined.out')
+        cmat=os.path.join(config['dirs']['output'], 'matrix',
+                          'count_matrix.csv'),
+        meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
+    params:
+        annos=config['files']['gene_annos']
+    output:
+        cmat=os.path.join(config['dirs']['output'], 'matrix',
+                          'collapsed_counts.csv'),
+        annos=os.path.join(config['dirs']['output'], 'annotations',
+                           'collapsed_annotations.csv')
+    script:
+        'scripts/python/collapse_to_genes.py'
+
+
 # pre-process the count matrix performing gene/sample filtering.
 rule preprocess_data:
     input:

@@ -112,23 +112,42 @@ def collapse(anno_df):
 
 
 def main(in_expr, out_expr, in_anno, out_anno, in_obs):
-    """[summary]
+    """
+    Collapse transcript counts and annotation files to the gene level. 
     
     Parameters
     ----------
-    in_expr : [type]
-        [description]
-    out_expr : [type]
-        [description]
-    in_anno : [type]
-        [description]
-    out_anno : [type]
-        [description]
-    in_obs : [type]
-        [description]
+    in_expr : str
+        File path to raw, uncollapsed feature count matrix as a .csv file.
+    out_expr : str
+        Output file name for collapsed count matrix as a .csv file.
+    in_anno : str
+        File path to uncollapsed gene annotations for all scaffold/transcripts
+        in aligned genome. Should be in the .csv format.
+    out_anno : str
+        Output file name for collapse annotation file as a .csv file.
+    in_obs : str
+        File path to metadata for all cells in current run. Should be in the
+        .csv format.
     
+    Returns
+    -------
+    None
+        Write files to specified output files. 
     """
     data = sc_utils.create_annotated_df(in_expr, in_anno, in_obs)
     expr, genes = collapse(data)
     expr.to_csv(out_expr)
     genes.to_csv(out_anno)
+
+
+if __name__ == "__main__":
+    snakemake_exists = True
+    try:
+        snakemake
+    except NameError:
+        snakemake_exists = False
+    if snakemake_exists:
+        main(snakemake.input['cmat'], snakemake.output['cmat'],
+             snakemake.input['annos'], snakemake.output['annos'],
+             snakemake.input['meta'])
