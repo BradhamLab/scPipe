@@ -118,7 +118,6 @@ rule collapse_annotations:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
                           'count_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
-    params:
         annos=config['files']['gene_annos']
     output:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
