@@ -66,31 +66,43 @@ def create_annotated_df(expr_file, gene_file, cell_file, filter_cells=None,
         data.
     """
 
-    # read in data
+    # read in data expression data
     expr_data = pd.read_csv(expr_file, index_col=0)
     if transpose_expr:
         expr_data = expr_data.T
 
+    # read in gene annotations, fix ids between annotations + alignments
     gene_data = pd.read_csv(gene_file, index_col=0)
     gene_data['scaffold'] = [x.replace('model', 'TU') for x in gene_data.index]
-    gene_data = gene_data.set_index('scaffold')  # this is filling with NaN
+    gene_data = gene_data.set_index('scaffold')
 
+    # read in cell annotations
     cell_data = pd.read_csv(cell_file, index_col=0)
 
-    # only keep cells found in both cell data and expr data
-    keep_cells = list(set(cell_data.index).intersection(expr_data.index))
+    # add null cell annotations for missing cells
+    null_cells = list(set(expr_data.index).difference(cell_data.index))
+    if len(null_cells) > 0:
+        null_cell_anno = pd.DataFrame(index=null_cells,
+                                      columns=cell_data.columns)
+        cell_data = pd.concat([cell_data, null_cell_anno])
 
-    # remove non-PMC cells
+    # remove specified cells for filtering
+    keep_cells = cell_data.index.values
     if filter_cells is not None:
         keep_cells = [x for x in keep_cells if x not in filter_cells]
         
     cell_data = cell_data.filter(keep_cells, axis=0)
     expr_data = expr_data.filter(keep_cells, axis=0)
 
-    # remove genes that are not in both annotation and and expression datasets 
-    keep_genes = list(set(expr_data.columns).intersection(gene_data.index))
-    gene_data = gene_data.filter(keep_genes, axis=0)
-    expr_data = expr_data.filter(keep_genes, axis=1)
+    # set null annotations to unannotated genes
+    null_genes = list(set(expr_data.columns).difference(gene_data.index))
+    if len(null_genes) > 0:
+        null_gene_anno = pd.DataFrame(index=null_genes,
+                                      columns=gene_data.columns)
+        gene_data = pd.concat([gene_data, null_gene_anno])
+
+    # filter genes to only include genes with reads
+    gene_data = gene_data.filter(expr_data.columns, axis=0)
 
     # create anno df formatted cells x genes 
     anno_df = sc.AnnData(expr_data.values, obs=cell_data, var=gene_data)
