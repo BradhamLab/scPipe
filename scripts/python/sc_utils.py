@@ -4,6 +4,7 @@ import scanpy.api as sc
 
 from skimage.filters import threshold_otsu
 from scipy import linalg, stats
+import statsmodels.api as sm
 import pomegranate as pmg
 
 from matplotlib import pyplot as plt
@@ -215,8 +216,8 @@ def gini_coefficient(X):
 
     return np.sum(np.abs(np.subtract.outer(X, X))) / (2*len(X)*np.sum(X))
 
-Gini ceofficient calculation.
-def variable_genes(anno_df, percentile=0.75, ignore_zeros=True):
+
+def variable_genes(anno_df, method='gini', percentile=0.75, ignore_zeros=True):
     """
     Return most variable genes, measured by dispersion. 
     
@@ -224,6 +225,10 @@ def variable_genes(anno_df, percentile=0.75, ignore_zeros=True):
     ----------
     anno_df : sc.AnnData
         Annotated dataframe of gene expression data. 
+    method : str, optional
+        Method to calculate measure dispersion/variance within an expression
+        profile. Default is 'gini', and the Gini coefficient will be calculated.
+        Possible values include: 'gini', 'dispersion'. 
     percentile : float, optional
         Percentile of most variable genes to return. Value should be between
         0 and 1. Default is 0.75, and only the top 25% of genes will be
@@ -246,12 +251,17 @@ def variable_genes(anno_df, percentile=0.75, ignore_zeros=True):
         raise ValueError('`percentile` must be a value in between 0 and 1.')
     if not ignore_zeros:
         Warning("Keeping zeros when calculating dispersion often leads to NaNs.")
+    if method not in ['gini', 'dispersion']:
+        raise ValueError('Unsupported dispersion method: {}'.format(method))
     for i, gene in enumerate(anno_df.var.index):
         expression = np.array(anno_df[:, gene].X)
         if ignore_zeros:
             expression = expression[expression != 0]
         if len(expression) > 0:
-            gene_dispersion[i] = dispersion(expression)
+            if method == 'gini':
+                gene_dispersion[i] = gini_coefficient(expression)
+            elif method == 'dispersion':
+                gene_dispersion[i] = dispersion(expression)
     sorted_dispersion = np.argsort(gene_dispersion)
     start_idx = int(len(sorted_dispersion)*percentile)
 
@@ -287,50 +297,113 @@ def binarize_expression(anno_df, method='mixture', overwrite=False):
     if not overwrite:
         binarized = anno_df.copy()
     for gene in binarized.var.index:
-        X, threshold = threshold_expression(np.array(binarized[:, gene].X),
-                                            method)
-        binarized[:, gene].X = X
-
+        out = fit_expression(binarized[:, gene].X)
+        binarized[:, gene].X = out
     return binarized
 
-def noise_signal_mixture(X):
-    """
-    Fit data to a mixture model to identify signal and technical noise.
+class SignalNoiseModel(object):    
 
-    Fit data to a mixture model where technical noise of scRNAseq profiles is
-    modelled using a Poisson distribution, and true expression is modelled as a
-    Gaussian Distribution. 
-    
-    Parameters
-    ----------
-    X : numpy.array
-        single-cell expression profile across cells.
-    
-    Returns
-    -------
-    pomegranate.GeneralMixtureModel
-        General mixture model with two components: a Poisson distribution to
-        model technical noise, and a Gaussian distribution to model signal.
-    """
+    def __init__(self, X):
+        """
+        Fit data to a mixture model to distinguish signal from technical noise.
 
-    #  use count data for mixtures
-    counts, bins = np.histogram(X, bins=30)
-    mode_idx = np.where(counts == np.max(counts[1:]))[0][0]
-    normal_spread = bins[-1] - bins[mode_idx]
-    normal_min = bins[np.where(bins < bins[mode_idx] - normal_spread)[0][-1]]
+        Fit data to a mixture model where technical noise of scRNAseq profiles
+        is modelled using a Poisson distribution, and true expression is
+        modelled as a Gaussian Distribution. 
+        
+        Parameters
+        ----------
+        X : numpy.array
+            Single-cell expression profile across cells. Values are assumed to
+            be log-transformed.
+        
+        Attributes
+        ----------
+        gmm
+        range
 
-    signal = pmg.NormalDistribution.from_samples(X[X >= normal_min])
+        Methods
+        -------
+        pdf : Calculate the probability of values within an array.
+        cdf : Calculate cumulative density probabilities of values in an array.
+        """
+        #  use count data for mixtures
+        counts, bins = np.histogram(X, bins=30)
 
-    pois_lambda = max(np.mean(X[X < normal_min]), sum(X==0)/len(X))
+        # estimate center as maximum non-zero count
+        mode_idx = np.where(counts == np.max(counts[1:]))[0][0]
+        # estimate 2SD as center - end value --> find values in normal distribution
+        normal_spread = bins[-1] - bins[mode_idx]
+        normal_min = bins[np.where(bins < bins[mode_idx] - normal_spread)[0][-1]]
+        # estimate Normal distribution from likely normal samples
+        signal = pmg.NormalDistribution.from_samples(X[X >= normal_min])
+        # estimate Poisson from likely non-normal samples
+        pois_lambda = max(np.mean(X[X < normal_min]), sum(X==0)/len(X))
+        noise = pmg.PoissonDistribution(pois_lambda)
+        # instantiate and fit mixture to data
+        gmm = pmg.GeneralMixtureModel([noise, signal])
+        self.gmm = gmm.fit(X)
+        self.range = [0, np.max(X) + normal_spread]
 
-    noise = pmg.PoissonDistribution(pois_lambda)
-    gmm = pmg.GeneralMixtureModel([noise, signal])
-    gmm = gmm.fit(X)
+    def pdf(self, X):
+        return self.gmm.probability(X)
 
-    return gmm
+    def cdf(self, X):
+        """
+        Calculate cumulative probabilities for values within an array.
+        
+        Parameters
+        ----------
+        X : np.array
+            Array of values defined in the mixture domain.
+        
+        Returns
+        -------
+        np.array
+            Array of cumulative densities for each provided value.
+        """
+        values = np.zeros_like(X)
+        for i, x in enumerate(X):
+            space = np.arange(0, x + 0.01, 0.01)
+            values[i] = np.sum(self.pdf(space)*0.01)
+        return values
+
+    def threshold(self):
+        space = np.arange(self.range[0], self.range[1], 0.01).reshape(-1, 1)
+        p_x = self.gmm.predict_proba(space)
+        idx = 0
+        while p_x[idx][0] > p_x[idx][1] and idx < p_x.shape[0]:
+            idx += 1
+        return space[idx][0]
+        
+
+def fit_expression(X, silent=True):
+    mu = np.mean(X)
+    sigma = np.std(X)
+
+    noise = stats.poisson(mu)
+    signal = stats.norm(loc=mu, scale=sigma)
+    mixture = SignalNoiseModel(X)
+    models = [noise.cdf, signal.cdf, mixture.cdf]
+    scores = [stats.kstest(X, f)[0] for f in models]
+
+    out = X.copy()
+    if scores[0] == np.min(scores):
+        msg = 'All reads likely noise. Setting counts to zero.'
+        out = np.zeros_like(X)
+    elif scores[1] == np.min(scores):
+        msg = 'All reads likely signal. Keeping counts.'
+    else:
+        msg = 'Reads likely a mixture of noise and signal. Setting noise reads'\
+        +     ' to zeros.'
+        out = threshold_expression(out, value=mixture.threshold())[0]
+    if not silent:
+        print(msg)
+    return out
 
 
-def threshold_expression(X, method='otsu'):
+
+def threshold_expression(X, value=None, method='otsu'):
     """
     Threshold gene expression using pre-defined methods.
     
@@ -338,6 +411,10 @@ def threshold_expression(X, method='otsu'):
     ----------
         X: np.array
             Expression profile across cells.
+        
+        value: float, optional
+            Value to threshold expression by. Default is `None`, and a threshold
+            will be estimated using the method passed in the `method` argument.
     
         method: str, optional
              Method to determine expression threshold. Default is otsu, which
@@ -353,17 +430,13 @@ def threshold_expression(X, method='otsu'):
     """
 
     threshold = 0
-    if method == 'otsu':
+    if value is not None:
+        threshold = value
+    elif method == 'otsu':
         threshold = threshold_otsu(X)
     elif method == 'mixture':
-        gmm = noise_signal_mixture(X)
-        space = np.arange(0, np.max(X), 0.1).reshape(-1, 1)
-        probabilities = gmm.predict_proba(space)
-        idx = 0
-        while probabilities[idx][0] > probabilities[idx][1] and \
-        idx < probabilities.shape[0]:
-            idx += 1
-        threshold = space[idx][0]
+        gmm = SignalNoiseModel(X)
+        threshold = gmm.threshold()
     else:
         raise ValueError("Unsupported method: {}".format(method))
     X[X < threshold] = 0
