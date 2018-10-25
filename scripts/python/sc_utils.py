@@ -189,6 +189,33 @@ def dispersion(array):
     return (quartiles[1] - quartiles[0]) / (quartiles[1] + quartiles[0])
 
 
+def gini_coefficient(X):
+    """
+    Calculate the Gini coefficient of a given expression profile.
+
+    Calculates the Gini coefficient to measure dispersion of counts. Calculated
+    using the median absolute deviation form.
+    
+    Parameters
+    ----------
+    X : np.array
+        Expression profile for a given gene. 
+    
+    Returns
+    -------
+    float
+        The Gini coefficient to measure "inequality" within the profile.
+    
+    References
+    ----------
+         Damgaard, Christian. "Gini Coefficient." From MathWorld--A Wolfram Web
+         Resource, created by Eric W. Weisstein.
+         http://mathworld.wolfram.com/GiniCoefficient.html 
+    """
+
+    return np.sum(np.abs(np.subtract.outer(X, X))) / (2*len(X)*np.sum(X))
+
+Gini ceofficient calculation.
 def variable_genes(anno_df, percentile=0.75, ignore_zeros=True):
     """
     Return most variable genes, measured by dispersion. 
