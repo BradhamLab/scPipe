@@ -8,12 +8,13 @@ import umap
 from scipy import spatial, stats
 
 import sc_utils
+import sc_plotting
 
 sc.settings.verbosity = 1
 sc.settings.set_figure_params(dpi=80)
 sc.logging.print_versions()
 
-expr_file = '../../output/final/normalized_tpm_matrix.csv'
+expr_file = '../../output/final/normalized_log_matrix.csv'
 gene_file = '/home/dakota/SequenceData/evm_annotations.csv'
 cell_file = '../../output/metadata/filtered_metadata.csv'
 
@@ -170,8 +171,13 @@ def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
             
     return out
 
-    
-def cluster_cells(anno_df, nn=15, metric='cosine'):
+# TODO: documentation, add two rounds of clustering -> one defined in whole
+# dataset, then one defined in the '3' clusters that are produced from there.
+# implement cluster evaluation -> iterate until best, etc.
+def cluster_cells(anno_df, nn=15, metric='euclidean', percent_zeros=None,
+                  on_hvgs=False, hvg_kwargs=None, on_off=False,
+                  on_off_kwargs=None, genes=None, find_correlated=False,
+                  correlation_kwargs=None, find_related=False):
     """
     Cluster cells using Louvain modularity on UMAP projections of cells.
     
@@ -182,7 +188,7 @@ def cluster_cells(anno_df, nn=15, metric='cosine'):
     nn : int, optional
         Number of neighbors to use in UMAP projections. Default is 15.
     metric : str, optional
-        Distance metric to use. Default is 'cosine'.
+        Distance metric to use. Default is 'euclidean'.
     
     Returns
     -------
@@ -190,13 +196,59 @@ def cluster_cells(anno_df, nn=15, metric='cosine'):
         Annotated dataframe with clustering results.
     """
 
+    # remove high zeros -- currently will remove genes in `genes`.
+    if percent_zeros is not None:
+        anno_df = sc_utils.filter_by_coverage(anno_df,
+                                              threshold=percent_zeros)
+    # pipeline 1:
+    if genes is None:
+        # find high variance genes
+        if on_hvgs:
+            if hvg_kwargs is not None:
+                hvgs = sc_utils.variable_genes(anno_df, **hvg_kwargs)
+            else:
+                hvgs = sc_utils.variable_genes(anno_df)
+            anno_df = anno_df[:, hvgs]
+    # pipeline 2:
+    else:
+        if find_correlated:
+            if correlation_kwargs is not None:
+                cor_df = sc_utils.correlated_genes(anno_df, genes,
+                                                   **correlation_kwargs)
+            else:
+                cor_df = sc_utils.correlated_genes(anno_df, genes,
+                                                   threshold=0.5**2)
+            genes = list(set(genes).union(cor_df['Correlated.Gene'].values))
+        anno_df = anno_df[:, genes]
+        if find_related:
+            names = [x.split('_')[0] for x in anno_df.var['UniProt.Name'] if\
+                     not pd.isnull(x)]
+            related_genes = set(anno_df.var.index.values)
+            for gene in anno_df.var.index.values:
+                gene_name = anno_df.var.loc[gene, 'UniProt.Name']
+                if not pd.isnull(gene_name) and gene_name.split('_')[0] in names:
+                    related_genes.add(gene)
+            anno_df = anno_df[:, list(related_genes)]
+            
+    # threshold expression
+    if on_off:
+        if on_off_kwargs is not None:
+            anno_df = sc_utils.set_on_off(anno_df, method='mixture',
+                                            overwrite=False)
+        else:
+            anno_df = sc_utils.set_on_off(anno_df, **on_off_kwargs)
+        
+    
+    # cluster using louvain 
     sc.pp.neighbors(anno_df, n_neighbors=nn, metric=metric, use_rep='X')
     sc.tl.umap(anno_df, min_dist=0.0)
     sc.tl.louvain(anno_df)
     anno_df.obs['umap1'] = anno_df.obsm['X_umap'][:, 0]
     anno_df.obs['umap2'] = anno_df.obsm['X_umap'][:, 1]
+    anno_df = rename_clusters(anno_df)
+    sc_plotting.plot_umap(anno_df, color_col='louvain')
     # anno_df.obs.to_csv('../../output/plots/clusters.csv')
-    sc.pl.umap(anno_df, color='louvain')
+    # sc.pl.umap(anno_df, color='louvain')
     return anno_df
 
 
@@ -251,7 +303,7 @@ def project_onto_controls(anno_df, neighbors=15):
         column in observation dataframe.
     """
 
-    control_anno = filter_cells(anno_df, 'treatment', ['ASW', 'DMSO'])
+    control_anno = sc_utils.filter_cells(anno_df, 'treatment', ['ASW', 'DMSO'])
 
     cell_umap = umap.UMAP(n_neighbors=neighbors, metric='cosine', min_dist=0.0)
     cell_umap = cell_umap.fit(control_anno.X)
