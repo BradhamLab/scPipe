@@ -268,9 +268,9 @@ def variable_genes(anno_df, method='gini', percentile=0.75, ignore_zeros=True):
     return anno_df.var.index.values[start_idx:]
 
 
-def binarize_expression(anno_df, method='mixture', overwrite=False):
+def set_on_off(anno_df, method='mixture', overwrite=False):
     """
-    Binarize gene expression in cells by fitting gaussian mixture models.
+    Set genes to an on or off state by fitting a general mixture model.
     
     Parameters
     ----------
@@ -297,7 +297,10 @@ def binarize_expression(anno_df, method='mixture', overwrite=False):
     if not overwrite:
         binarized = anno_df.copy()
     for gene in binarized.var.index:
-        out = fit_expression(binarized[:, gene].X)
+        if method == 'mixture':
+            out = fit_expression(binarized[:, gene].X)
+        elif method == 'otsu':
+            out = threshold_expression(binarized[:, gene].X, method='otsu')
         binarized[:, gene].X = out
     return binarized
 
@@ -319,13 +322,19 @@ class SignalNoiseModel(object):
         
         Attributes
         ----------
-        gmm
-        range
+        gmm: pomegranate.GeneralMixtureModel 
+            Mixture of a Poisson and Normal Distribution to de-convolve noise
+            and signal.
+        range: list
+            Two element list with range of possible values. Minimum is always
+            zero, and max is set to the maximum observed value + spread.
+            #TODO, find this by increasing x by dx until cdf(x) - 1 < eps
 
         Methods
         -------
         pdf : Calculate the probability of values within an array.
         cdf : Calculate cumulative density probabilities of values in an array.
+        threshold: Find the first value such that P(Noise) < P(Signal)
         """
         #  use count data for mixtures
         counts, bins = np.histogram(X, bins=30)
@@ -334,7 +343,15 @@ class SignalNoiseModel(object):
         mode_idx = np.where(counts == np.max(counts[1:]))[0][0]
         # estimate 2SD as center - end value --> find values in normal distribution
         normal_spread = bins[-1] - bins[mode_idx]
-        normal_min = bins[np.where(bins < bins[mode_idx] - normal_spread)[0][-1]]
+
+        # find minimum value heuristically expected to be in signal
+        noise_indices = np.where(bins < bins[mode_idx] - normal_spread)[0]
+        if len(noise_indices) > 0:
+            normal_min = bins[noise_indices[-1]]
+        else:
+            # no values below expected threshold, set to first non-zero value
+            normal_min = bins[1]
+
         # estimate Normal distribution from likely normal samples
         signal = pmg.NormalDistribution.from_samples(X[X >= normal_min])
         # estimate Poisson from likely non-normal samples
@@ -402,7 +419,6 @@ def fit_expression(X, silent=True):
     return out
 
 
-
 def threshold_expression(X, value=None, method='otsu'):
     """
     Threshold gene expression using pre-defined methods.
@@ -452,9 +468,9 @@ def filter_by_coverage(anno_df, threshold=0.5):
     anno_df : sc.AnnData
         Annotated dataframe of expression data.
     threshold : float, optional
-        Minimum percent of zeros to needed to keep an expression profile from a
-        certain gene. The default is 0.5, which will filter genes with zeros
-        for greater than 50% of measurements.
+        Minimum percent of non-zeros to needed to keep an expression profile
+        from a certain gene. The default is 0.5, which will filter genes with
+        zeros for greater than 50% of measurements.
     
     Returns
     -------
