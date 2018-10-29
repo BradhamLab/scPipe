@@ -174,10 +174,11 @@ def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
 # TODO: documentation, add two rounds of clustering -> one defined in whole
 # dataset, then one defined in the '3' clusters that are produced from there.
 # implement cluster evaluation -> iterate until best, etc.
-def cluster_cells(anno_df, nn=15, metric='euclidean', percent_zeros=None,
-                  on_hvgs=False, hvg_kwargs=None, on_off=False,
-                  on_off_kwargs=None, genes=None, find_correlated=False,
-                  correlation_kwargs=None, find_related=False):
+def cluster_cells(anno_df, neighbor_kwargs=None, umap_kwargs=None,
+                  louvain_kwargs=None, percent_zeros=None, on_hvgs=False,
+                  hvg_kwargs=None, on_off=False, on_off_kwargs=None, genes=None,
+                  find_correlated=False, correlation_kwargs=None,
+                  find_related=False):
     """
     Cluster cells using Louvain modularity on UMAP projections of cells.
     
@@ -185,10 +186,54 @@ def cluster_cells(anno_df, nn=15, metric='euclidean', percent_zeros=None,
     ----------
     anno_df : sc.AnnData
         Annotated dataframe containing expression data
-    nn : int, optional
-        Number of neighbors to use in UMAP projections. Default is 15.
-    metric : str, optional
-        Distance metric to use. Default is 'euclidean'.
+    neighbor_kwargs : dict, optional
+        Keyword arguments passed to `sc.pp.neighbors()`. The default is None,
+        which will use default values. See `sc.tl.neighbors()` for more
+        information.
+    umap_kwargs : dict, optional
+        Keyword arguments passed to `sc.pp.umap()`. The default is None, which
+        will use default values. See `sc.pp.umap()` for for information.
+    louvain_kwargs : dict, optional
+        Keyword arguments passed to `sc.tl.louvain()`. The default is None,
+        which will use default values.
+    percent_zeros : float, optional
+        The maximum percentage of cells exhibiting zero reads a gene may have.
+        Genes with a greater percentage of cells showing zero reads will be
+        filtered out. The default is none, and genes will not be filtered by the
+        percentage of cells with zero reads.
+    on_hvgs : bool, optional
+        Whether to find and cluster on high variance genes. The default is
+        False, and high variance genes will not be found prior to clustering.
+    hvg_kwargs : dict, optional
+        Keyword arguments for finding high variance genes. The default is none,
+        and default parameters will be used. See `sc_utils.variable_genes()` for
+        more information.
+    on_off : bool, optional
+        Whether to set genes to `on` or `off` states in each cell. Cells
+        with the gene predicted as "On", will have their expression values
+        unchanged, while cells with the gene predicted as "off" will have their
+        expression set to zero. The default is False, and raw gene expression
+        values will be used. 
+    on_off_kwargs : dict, optional
+        Keyword arguments for predicting "on/off" states. See
+        `sc_utils.set_on_off()` for more information. The default is None, and
+        default values will be used.
+    genes : list-like, optional
+        A set of genes to cluster on. Passing a list of genes will bypass the 
+        high variance gene pipeline. The default is None, and clustering will
+        be done using the provided genes.
+    find_correlated : bool, optional
+        Whether to find and include genes correlated with genes provided in the
+        `genes` parameter. The default is False, and no correlated genes will
+        be found/included in clustering.
+    correlation_kwargs : dict, optional
+        Keyword arguments to use when finding correlated genes. See
+        `sc_utils.correlated_genes()` for more informatin. The default is None,
+        and default values will be used.
+    find_related : bool, optional
+        Whether to find and include genes with the same annotated protein as
+        genes passed in the `genes` parameter. The default is False, and no
+        related genes will be included. 
     
     Returns
     -------
@@ -238,17 +283,26 @@ def cluster_cells(anno_df, nn=15, metric='euclidean', percent_zeros=None,
         else:
             anno_df = sc_utils.set_on_off(anno_df, **on_off_kwargs)
         
-    
     # cluster using louvain 
-    sc.pp.neighbors(anno_df, n_neighbors=nn, metric=metric, use_rep='X')
-    sc.tl.umap(anno_df, min_dist=0.0)
-    sc.tl.louvain(anno_df)
+    if neighbor_kwargs is not None:
+        sc.pp.neighbors(anno_df, **neighbor_kwargs)
+    else:
+        sc.pp.neighbors(anno_df)
+    if umap_kwargs is not None:
+        sc.tl.umap(anno_df, **umap_kwargs)
+    else:
+        sc.pp.umap(anno_df)
+    if louvain_kwargs is not None:
+        sc.tl.louvain(anno_df, **louvain_kwargs)
+    else:
+        sc.tl.louvain(anno_df)
     anno_df.obs['umap1'] = anno_df.obsm['X_umap'][:, 0]
     anno_df.obs['umap2'] = anno_df.obsm['X_umap'][:, 1]
-    anno_df = rename_clusters(anno_df)
-    sc_plotting.plot_umap(anno_df, color_col='louvain')
-    # anno_df.obs.to_csv('../../output/plots/clusters.csv')
-    # sc.pl.umap(anno_df, color='louvain')
+    cluster_key = 'louvain'
+    if louvain_kwargs is not None and 'key_added' in louvain_kwargs.keys():
+        cluster_key = louvain_kwargs['key_added']
+    anno_df = rename_clusters(anno_df, cluster_col=cluster_key)
+    # sc_plotting.plot_umap(anno_df, color_col=cluster_key)
     return anno_df
 
 
