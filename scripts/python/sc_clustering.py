@@ -1,4 +1,6 @@
 import string
+import itertools
+from sortedcontainers import SortedListWithKey
 
 import numpy as np
 import pandas as pd
@@ -6,6 +8,7 @@ import scanpy.api as sc
 import sklearn
 import umap
 from scipy import spatial, stats
+import tqdm
 
 import sc_utils
 import sc_plotting
@@ -171,9 +174,100 @@ def compare_clusters(anno_df, comparisons=None, cluster_col='louvain',
             
     return out
 
-# TODO: documentation, add two rounds of clustering -> one defined in whole
+def parameter_search(anno_df, method='hvg', genes=None, nn_max=50,
+                     metrics=None):
+    # Get all parameter combination for neighbor finding
+    if metrics is None:
+        metrics = ['euclidean', 'cosine', 'correlation']
+    neighbors = [3, 5, 7] + list(range(10, nn_max + 1, 5)) # n neighbors to consider
+    use_rep = ['X', None] # expression profiles or PCA of expression profiles
+    neighbor_params = []
+    for metric, nn, rep in itertools.product(metrics, neighbors, use_rep):
+        neighbor_params.append({'metric': metric, 'n_neighbors': nn,
+                                'use_rep': rep})
+    # Parameter combinations for on-off expression patterns
+    on_off_params = [{'on_off': False},
+                     {'on_off': True,
+                      'params': {'method': 'mixture', 'test_fits': True}},
+                     {'on_off': True,
+                      'params': {'method': 'mixture', 'test_fits': False}},
+                     {'on_off': True,
+                      'params': {'method': 'otsu'}}]
+    on_off_params = [{'on_off': False}]
+
+    # Paramters for umap embeddings
+    umap_params = [{'min_dist': x} for x in np.arange(0, 1.1, 0.1)]
+      
+    scores = []
+    if method == 'hvg':
+        # TODO add ignore_zeros into grid later
+        # precalculate and order variable genes
+        print("Calculating variable genes via gini coefficient...")
+        gini_hvg = sc_utils.variable_genes(anno_df, method='gini',
+                                           percentile=0, ignore_zeros=False)
+        print("Calculating variable genes via dispersion...")
+        disp_hvg = sc_utils.variable_genes(anno_df, method='dispersion',
+                                           percentile=0, ignore_zeros=False)
+        gene_dict = {'gini': gini_hvg, 'dispersion': disp_hvg}
+        n_genes = len(disp_hvg)
+
+        # Instantiate hvg space
+        perc_var = np.arange(0.05, 1, 0.05)
+        hvg_params = [{'method': 'gini'}, {'method': 'dispersion'}]
+
+        # set up parameter search grid
+        grid = itertools.product(neighbor_params, umap_params, hvg_params,
+                                 on_off_params, perc_var)
+        # progress bar
+        pbar = tqdm.tqdm(total=len(neighbor_params) * len(umap_params) *\
+                         len(hvg_params) * (len(on_off_params) * len(perc_var)))
+        i = 0
+        for neighbor_kwargs, umap_kwargs, hvg_kwargs, on_off, perc in grid:
+            # set on-off parameters
+            set_on_off = on_off['on_off']
+            on_off_kwargs = None
+            if set_on_off:
+                on_off_kwargs = on_off['params']
+            # find minimum variable genes
+            idx = int(perc*n_genes)
+            var_genes = gene_dict[hvg_kwargs['method']][idx:]
+
+            # create parameter dictionary with score
+            param_dict = dict(neighbor_kwargs, **umap_kwargs)
+            param_dict.update(hvg_kwargs)
+            param_dict['percent.var'] = 1 - perc
+            param_dict['on_off'] = set_on_off
+            if on_off_kwargs is not None:
+                param_dict.update(on_off_kwargs)
+            
+            # print(param_dict)
+
+            # pass clustering parameters with variable genes specified
+            hvg_df = cluster_cells(anno_df, neighbor_kwargs=neighbor_kwargs,
+                                   umap_kwargs=umap_kwargs, on_hvgs=True,
+                                   on_off=set_on_off,
+                                   on_off_kwargs=on_off_kwargs, genes=var_genes)
+
+            param_dict['score'] = sklearn.metrics.silhouette_score(hvg_df.X,
+                                                          hvg_df.obs['louvain'])
+            # delete hvg_df just in case
+            del hvg_df
+            # save current score and parameter set
+            scores.append(param_dict)
+            # perform runs over on-off methods
+            pbar.update()
+        pbar.close()
+    scores = sorted(scores, key=lambda x: -1 * x['score'])
+    print('Best Model: {}'.format(scores[0]))
+    if True:
+        df = pd.DataFrame(scores)
+        df.to_csv('scores.csv')
+    return scores
+
+# TODO: add two rounds of clustering -> one defined in whole
 # dataset, then one defined in the '3' clusters that are produced from there.
 # implement cluster evaluation -> iterate until best, etc.
+# change
 def cluster_cells(anno_df, neighbor_kwargs=None, umap_kwargs=None,
                   louvain_kwargs=None, percent_zeros=None, on_hvgs=False,
                   hvg_kwargs=None, on_off=False, on_off_kwargs=None, genes=None,
@@ -191,8 +285,8 @@ def cluster_cells(anno_df, neighbor_kwargs=None, umap_kwargs=None,
         which will use default values. See `sc.tl.neighbors()` for more
         information.
     umap_kwargs : dict, optional
-        Keyword arguments passed to `sc.pp.umap()`. The default is None, which
-        will use default values. See `sc.pp.umap()` for for information.
+        Keyword arguments passed to `sc.tl.umap()`. The default is None, which
+        will use default values. See `sc.tl.umap()` for for information.
     louvain_kwargs : dict, optional
         Keyword arguments passed to `sc.tl.louvain()`. The default is None,
         which will use default values.
@@ -291,7 +385,7 @@ def cluster_cells(anno_df, neighbor_kwargs=None, umap_kwargs=None,
     if umap_kwargs is not None:
         sc.tl.umap(anno_df, **umap_kwargs)
     else:
-        sc.pp.umap(anno_df)
+        sc.tl.umap(anno_df)
     if louvain_kwargs is not None:
         sc.tl.louvain(anno_df, **louvain_kwargs)
     else:
@@ -373,3 +467,13 @@ def project_onto_controls(anno_df, neighbors=15):
     sc.tl.louvain(anno_df, adjacency=neighbor_graph)
     anno_df = rename_clusters(anno_df, 'louvain')
     return anno_df
+
+
+if __name__ == '__main__':
+    anno_df = sc_utils.create_annotated_df(expr_file, gene_file, cell_file,
+                                           bad_cells)
+    zero_filtered = sc_utils.filter_by_coverage(anno_df, threshold=0.3)
+    del anno_df
+    parameter_search(zero_filtered)
+
+    
