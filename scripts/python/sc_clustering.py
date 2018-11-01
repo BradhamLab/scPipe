@@ -12,6 +12,7 @@ import tqdm
 
 import sc_utils
 import sc_plotting
+import sc_expression
 
 sc.settings.verbosity = 1
 sc.settings.set_figure_params(dpi=80)
@@ -193,7 +194,10 @@ def parameter_search(anno_df, method='hvg', genes=None, nn_max=50,
                       'params': {'method': 'mixture', 'test_fits': False}},
                      {'on_off': True,
                       'params': {'method': 'otsu'}}]
-    on_off_params = [{'on_off': False}]
+    print("Precalculating on-off datasets...")
+    datasets = [anno_df] + [sc_expression.set_on_off(anno_df, **x['params'])\
+                            for x in on_off_params[1:]]
+    # on_off_params = [{'on_off': False}]
 
     # Paramters for umap embeddings
     umap_params = [{'min_dist': x} for x in np.arange(0, 1.1, 0.1)]
@@ -217,17 +221,19 @@ def parameter_search(anno_df, method='hvg', genes=None, nn_max=50,
 
         # set up parameter search grid
         grid = itertools.product(neighbor_params, umap_params, hvg_params,
-                                 on_off_params, perc_var)
+                                 range(4), perc_var)
         # progress bar
         pbar = tqdm.tqdm(total=len(neighbor_params) * len(umap_params) *\
                          len(hvg_params) * (len(on_off_params) * len(perc_var)))
-        i = 0
-        for neighbor_kwargs, umap_kwargs, hvg_kwargs, on_off, perc in grid:
+        for neighbor_kwargs, umap_kwargs, hvg_kwargs, on_off_idx, perc in grid:
+            # get data based on on off
+            data = datasets[on_off_idx]
+            
             # set on-off parameters
-            set_on_off = on_off['on_off']
+            set_on_off = on_off_params[on_off_idx]['on_off']
             on_off_kwargs = None
             if set_on_off:
-                on_off_kwargs = on_off['params']
+                on_off_kwargs = on_off_params[on_off_idx]['params']
             # find minimum variable genes
             idx = int(perc*n_genes)
             var_genes = gene_dict[hvg_kwargs['method']][idx:]
@@ -243,13 +249,12 @@ def parameter_search(anno_df, method='hvg', genes=None, nn_max=50,
             # print(param_dict)
 
             # pass clustering parameters with variable genes specified
-            hvg_df = cluster_cells(anno_df, neighbor_kwargs=neighbor_kwargs,
+            hvg_df = cluster_cells(data, neighbor_kwargs=neighbor_kwargs,
                                    umap_kwargs=umap_kwargs, on_hvgs=True,
-                                   on_off=set_on_off,
-                                   on_off_kwargs=on_off_kwargs, genes=var_genes)
+                                   genes=var_genes)
 
-            param_dict['score'] = sklearn.metrics.silhouette_score(hvg_df.X,
-                                                          hvg_df.obs['louvain'])
+            param_dict['score'] = sklearn.metrics.silhouette_score(
+                                  hvg_df.obsm['X_umap'],  hvg_df.obs['louvain'])
             # delete hvg_df just in case
             del hvg_df
             # save current score and parameter set
@@ -372,10 +377,10 @@ def cluster_cells(anno_df, neighbor_kwargs=None, umap_kwargs=None,
     # threshold expression
     if on_off:
         if on_off_kwargs is not None:
-            anno_df = sc_utils.set_on_off(anno_df, method='mixture',
-                                            overwrite=False)
+            anno_df = sc_expression.set_on_off(anno_df, method='mixture',
+                                               overwrite=False)
         else:
-            anno_df = sc_utils.set_on_off(anno_df, **on_off_kwargs)
+            anno_df = sc_expression.set_on_off(anno_df, **on_off_kwargs)
         
     # cluster using louvain 
     if neighbor_kwargs is not None:
