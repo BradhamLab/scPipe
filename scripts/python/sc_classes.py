@@ -1,7 +1,15 @@
+import collections
+
 import pomegranate as pmg
 import numpy as np
+import sklearn
 
-import collections
+import scanpy.api as sc
+from tqdm import tqdm
+
+import sc_utils
+import sc_expression
+import sc_clustering
 
 
 class SignalNoiseModel(object):    
@@ -112,9 +120,8 @@ parameter_space = {'neighbor_params': {'metric': ['euclidean', 'cosine',
                                      {'on_off': True,
                                       'params': {'method': 'otsu'}}],
                     'hvg_params': {'method': ['gini', 'dispersion'],
-                                   'percentile': np.arange(0.05, 1.05, 0.05),
+                                   'percentile': np.arange(0.05, 1.0, 0.05),
                                    'ignore_zeros': [True, False]}}
-
 
 
 class Individual(object):
@@ -127,6 +134,7 @@ class Individual(object):
         msg = "Individual with the following genotype:\n"
         for key, item in self.chromosome.items():
             msg += "  {}: {}\n".format(key, item)
+        msg += "  Fitness: {}\n".format(self.fitness)
         return msg
     
     def cross(self, partner):
@@ -156,19 +164,105 @@ class Individual(object):
 class ClusterFitness(object):
 
     def __init__(self, data):
-        None
+        # pre-compute stuff
+        self.ranked_genes = {'dispersion': None, 'gini':None}
+        # rank hvg genes
+        print('Pre-computing high variable genes via dispersion...')
+        self.ranked_genes['dispersion'] = sc_utils.variable_genes(data,
+                                                            method='dispersion',
+                                                            percentile=0)
+        print('Pre-computing high variable genes via gini metric...')
+        self.ranked_genes['gini'] = sc_utils.variable_genes(data, method='gini',
+                                                       percentile=0)
 
+        print('Pre-computing principle components for raw data..')
+        sc.pp.pca(data)
+        # pre-compute data
+        self.data = {'raw': data, 'mixture.on_off': None, 'mixture.fit': None,
+                     'otsu': None}
+        print("Pre-computing on-off via mixture models...")
+        self.data['mixture.on_off'] = sc_expression.set_on_off(data,
+                                                               method='mixture', 
+                                                               test_fits=False)
+        print("Pre-computing on-off via mixture models and assessing fit...")
+        self.data['mixture.fit'] = sc_expression.set_on_off(data,
+                                                            method='mixture',
+                                                            test_fits=True)
+        print("Pre-computing on-off via otsu's method...")
+        self.data['otsu'] = sc_expression.set_on_off(data, method='otsu')
+        
     def score(self, individual):
-        individual.fitness = None
+        cluster_input = ClusterFitness.__parse_chromosome(individual.chromosome)
+        # get expression data based off of input parameters
+        if cluster_input['on_off_params']['on_off']:
+            params = cluster_input['on_off_params']['params']
+            if params['method'] == 'mixture':
+                if params['test_fits']:
+                    data = self.data['mixture.fit']
+                else:
+                    data = self.data['mixture.on_off']
+            else:
+                data = self.data[params['method']]
+        else:
+            data  = self.data['raw']
+        
+        # get genes
+        genes =  self.ranked_genes[cluster_input['hvg_params']['method']]
+        percentile = cluster_input['hvg_params']['percentile']
+        idx = int(percentile*len(genes))
+        
+        # pass clustering parameters with variable genes specified
+        print(individual)
+        hvg_df = sc_clustering.cluster_cells(data,
+                               neighbor_kwargs=cluster_input['neighbor_params'],
+                               genes=genes[idx:])
 
-    def __parse_chromosome(self, chromosome):
+        individual.fitness = sklearn.metrics.silhouette_score(
+                                                 self.data['raw'].obsm['X_pca'],
+                                                 hvg_df.obs['louvain'])
 
-        return None
+    @staticmethod
+    def __parse_chromosome_key(keys, value):
+        if len(keys) > 1:
+            new_value = {keys[-1]: value}
+            return ClusterFitness.__parse_chromosome_key(keys[:-1], new_value)
+        else:
+            return {keys[0]: value}
+    
+    @staticmethod
+    def __merge_dict(d1, d2):
+        new_dict = {}
+        for key in d1.keys():
+            if key in d2.keys():
+                if isinstance(d1[key], collections.MutableMapping) and\
+                isinstance(d2[key], collections.MutableMapping):
+                    new_dict[key] = {**d1[key], **d2[key]}
+            else:
+                new_dict[key] = d1[key]
+        for key in d2.keys():
+            if key not in d1.keys():
+                new_dict[key] = d2[key]
+        return new_dict
+
+    @staticmethod
+    def __parse_chromosome(chromosome):
+        parameter_kwargs = {}
+        for key in chromosome.keys():
+            if '.' in key:
+                kwargs = ClusterFitness.__parse_chromosome_key(key.split('.'),
+                                                             chromosome[key])
+                parameter_kwargs = ClusterFitness.__merge_dict(parameter_kwargs,
+                                                               kwargs)
+            else:
+                parameter_kwargs[key] = chromosome[key]
+
+        return parameter_kwargs
+    
 
 class GeneticAlgorithm(object):
 
     def __init__(self, parameter_space, pop_size=100, mutation_rate=0.03,
-                 generations=500):
+                 generations=500, verbose=True):
         """[summary]
         
         Parameters
@@ -217,6 +311,9 @@ class GeneticAlgorithm(object):
 
         self.__set_genomic_space(parameter_space)
         self.__initial_population(pop_size)
+        self.generations = generations
+        self.mutation_rate = mutation_rate
+        self.verbose = verbose
 
     @staticmethod
     def __evaluate_key(key):
@@ -225,12 +322,8 @@ class GeneticAlgorithm(object):
         if '.' in key:
             raise ValueError("Cannot have `.` in dictionary keys.")
 
-    def optimize(self, fitness):
-
-        return None
-
     @staticmethod
-    def flatten(d, parent_key='', sep='_'):
+    def flatten(d, parent_key='', sep='.'):
         """[summary]
         
         Parameters
@@ -240,7 +333,7 @@ class GeneticAlgorithm(object):
         parent_key : str, optional
             [description] (the default is '', which [default_description])
         sep : str, optional
-            [description] (the default is '_', which [default_description])
+            [description] (the default is '.', which [default_description])
         
         Returns
         -------
@@ -250,7 +343,7 @@ class GeneticAlgorithm(object):
         References
         ----------
 
-        Taken shameless from here:
+        Taken shamelessly from here:
             https://stackoverflow.com/questions/6027558/flatten-nested-python-dictionaries-compressing-keys
         """
 
@@ -273,6 +366,15 @@ class GeneticAlgorithm(object):
         self.population = [None]*n
         for i in range(n):
             self.population[i] = self.random_individual()
+    
+    @staticmethod
+    def __score2prob(scores):
+        try:
+            scores = np.array(scores)
+        except:
+            raise ValueError("`scores` must be castable to numpy array.")
+        ex_scores = np.exp(scores - np.max(scores))
+        return ex_scores / ex_scores.sum()
 
     def random_individual(self):
         """
@@ -289,9 +391,36 @@ class GeneticAlgorithm(object):
                       for key in self.genomic_space}
         return Individual(chromosome)
 
-    def breed(self):
+    def best_performer(self):
+        scores = [x.fitness for x in self.population]
+        return self.population[np.argsort(scores)[0]]
 
-        return 0
+    def breed(self, fitness_function):
+        for i in tqdm(range(self.generations)):
+            new_population = []
+            # calculate fitness for current population
+            for each in self.population:
+                fitness_function.score(each)
+            # convert fitness scores to probabilities for pairing selection
+            p_select = self.__score2prob([x.fitness for x in self.population])
+            # select pairs
+            pairs = np.random.choice(self.population,
+                                     (int(len(self.population) / 2), 2),
+                                     replace=False, p=p_select)
+            # create children by crossing parents
+            for parent1, parent2 in pairs:
+                child1, child2 = parent1.cross(parent2)
+                r1, r2 = np.random.random(2)
+                if r1 <= self.mutation_rate:
+                    child1 = self.mutate(child1)
+                if r2 <= self.mutation_rate:
+                    child2 = self.mutate(child2)
+                new_population += [child1, child2]
+            self.population = new_population
+            
+        # score final population
+        for each in self.population:
+            fitness_function.score(each)
 
     def mutate(self, individual):
         # choose random 'gene' to change
@@ -301,7 +430,3 @@ class GeneticAlgorithm(object):
                                   if individual.chromosome[key] != x])
         individual.chromosome[key] = value
         return individual
-
-
-
-
