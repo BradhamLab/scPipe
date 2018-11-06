@@ -406,7 +406,7 @@ class GeneticAlgorithm(object):
             # select pairs
             pairs = np.random.choice(self.population,
                                      (int(len(self.population) / 2), 2),
-                                     replace=False, p=p_select)
+                                     replace=True, p=p_select)
             # create children by crossing parents
             for parent1, parent2 in pairs:
                 child1, child2 = parent1.cross(parent2)
