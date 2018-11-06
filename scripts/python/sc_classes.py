@@ -11,6 +11,54 @@ import sc_utils
 import sc_expression
 import sc_clustering
 
+cluster_spaces = {'controls': {'neighbor_params': {'metric': ['euclidean',
+                                                              'cosine',
+                                                              'correlation'],
+                                                   'n_neighbors': [3, 5, 7] + 
+                                                    list(range(10, 50 + 1, 5)),
+                                                   'use_rep': ['X', None]},
+                                'on_off_params': [{'on_off': False},
+                                                  {'on_off': True,
+                                                   'params':
+                                                        {'method': 'mixture',
+                                                         'test_fits': True}},
+                                                  {'on_off': True,
+                                                   'params':
+                                                        {'method': 'mixture',
+                                                         'test_fits': False}},
+                                                  {'on_off': True,
+                                                   'params':
+                                                        {'method': 'otsu'}}],
+                                 'hvg_params': {'method': ['gini',
+                                                           'dispersion'],
+                                                'percentile':
+                                                    np.arange(0.0, 0.5, 0.05),
+                                                'ignore_zeros': [True, False]}},
+
+                  'clusterA': {'neighbor_params': {'metric': ['euclidean',
+                                                              'cosine',
+                                                              'correlation'],
+                                                   'n_neighbors': [3, 5, 7] + 
+                                                       list(range(10, 30, 5)),
+                                                   'use_rep': ['X', None]},
+                               'on_off_params': [{'on_off': False},
+                                                 {'on_off': True,
+                                                  'params':
+                                                       {'method': 'mixture',
+                                                        'test_fits': True}},
+                                                 {'on_off': True,
+                                                  'params':
+                                                       {'method': 'mixture',
+                                                        'test_fits': False}},
+                                                 {'on_off': True,
+                                                  'params':
+                                                       {'method': 'otsu'}}],
+                                'hvg_params': {'method':
+                                                   ['gini', 'dispersion'],
+                                               'percentile':
+                                                   np.arange(0.0, 0.5, 0.05),
+                                               'ignore_zeros':
+                                                   [True, False]}}}
 
 class SignalNoiseModel(object):    
 
@@ -105,25 +153,6 @@ class SignalNoiseModel(object):
             idx += 1
         return space[idx][0]
 
-parameter_space = {'neighbor_params': {'metric': ['euclidean', 'cosine',
-                                                  'correlation'],
-                                       'n_neighbors': [3, 5, 7] + 
-                                            list(range(10, 50 + 1, 5)),
-                                       'use_rep': ['X', None]},
-                   'on_off_params': [{'on_off': False},
-                                     {'on_off': True,
-                                      'params': {'method': 'mixture',
-                                                 'test_fits': True}},
-                                     {'on_off': True,
-                                      'params': {'method': 'mixture',
-                                                 'test_fits': False}},
-                                     {'on_off': True,
-                                      'params': {'method': 'otsu'}}],
-                    'hvg_params': {'method': ['gini', 'dispersion'],
-                                   'percentile': np.arange(0.05, 1.0, 0.05),
-                                   'ignore_zeros': [True, False]}}
-
-
 class Individual(object):
 
     def __init__(self, chromosome=None):
@@ -164,6 +193,9 @@ class Individual(object):
 class ClusterFitness(object):
 
     def __init__(self, data):
+        # remove genes with all zereos, just in case
+        sc.pp.filter_genes(data, min_cells=3)
+
         # pre-compute stuff
         self.ranked_genes = {'dispersion': None, 'gini':None}
         # rank hvg genes
@@ -176,7 +208,8 @@ class ClusterFitness(object):
                                                        percentile=0)
 
         print('Pre-computing principle components for raw data..')
-        sc.pp.pca(data)
+        components = min(50, *data.shape)
+        sc.pp.pca(data, n_comps=components)
         # pre-compute data
         self.data = {'raw': data, 'mixture.on_off': None, 'mixture.fit': None,
                      'otsu': None}
@@ -212,7 +245,6 @@ class ClusterFitness(object):
         idx = int(percentile*len(genes))
         
         # pass clustering parameters with variable genes specified
-        print(individual)
         hvg_df = sc_clustering.cluster_cells(data,
                                neighbor_kwargs=cluster_input['neighbor_params'],
                                genes=genes[idx:])
@@ -425,7 +457,7 @@ class GeneticAlgorithm(object):
             # select pairs
             pairs = np.random.choice(self.population,
                                      (int(len(self.population) / 2), 2),
-                                     replace=False, p=p_select)
+                                     replace=True, p=p_select)
             # create children by crossing parents
             for parent1, parent2 in pairs:
                 child1, child2 = parent1.cross(parent2)
@@ -436,7 +468,7 @@ class GeneticAlgorithm(object):
                     child2 = self.mutate(child2)
                 new_population += [child1, child2]
             self.population = new_population
-            
+
         # score final population
         for each in self.population:
             fitness_function.score(each)
