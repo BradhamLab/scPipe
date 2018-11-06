@@ -369,6 +369,25 @@ class GeneticAlgorithm(object):
     
     @staticmethod
     def __score2prob(scores):
+        """
+        Convert fitness scores to probabilities using the softmax function.
+        
+        Parameters
+        ----------
+        scores : numpy.array
+            Fitness scores for each individual in the current population
+        
+        Raises
+        ------
+        ValueError
+            Raised if `scores` is not castable to a numpy.array.
+        
+        Returns
+        -------
+        numpy.array
+            Probability to select each individual within the population 
+        """
+
         try:
             scores = np.array(scores)
         except:
@@ -406,7 +425,7 @@ class GeneticAlgorithm(object):
             # select pairs
             pairs = np.random.choice(self.population,
                                      (int(len(self.population) / 2), 2),
-                                     replace=True, p=p_select)
+                                     replace=False, p=p_select)
             # create children by crossing parents
             for parent1, parent2 in pairs:
                 child1, child2 = parent1.cross(parent2)
