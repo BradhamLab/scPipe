@@ -412,7 +412,7 @@ class GeneticAlgorithm(object):
         Raises
         ------
         ValueError
-            Raised if `scores` is not castable to a numpy.array.
+        return self.population[np.argmax(scores)
         
         Returns
         -------
