@@ -48,7 +48,8 @@ def cyndi_format(n_colors):
 
 
 def plot_expectation_difference(observed, expected, normalize=False,
-                                compare_col='treatment', p_values=None):
+                                row_name=None, col_name=None, p_values=None,
+                                ax=None):
     """
     Plot deviations between observed counts and expected counts.
     
@@ -64,9 +65,19 @@ def plot_expectation_difference(observed, expected, normalize=False,
         Whether to normalize deviations to percent deviations (e.g.
         (expected - count) / expected). The default is False, which plots count
         differences. 
-    compare_col : str, optional
-        Column name of treatments/predictors. Both `observed` and `expected`
-        should have their columns indexed by this name. Default is 'treatment'.
+    row_name : str, optional
+        Name of nomical class indexed by rows. Default is None, and the
+        function will look for the name of the index in the `observed`
+        DataFrame. Providing a value will overwrite this name. If no value is
+        provided, and the index in `observed` is not named, the name will be set
+        to 'Row.Value'.
+    column_name : str, optional
+        Name of nomical class indexed by column. Default is None, and the
+        function will look for the name of the columns in the `observed`
+        DataFrame. Providing a value will overwrite this name. If no value is
+        provided, and the columns in `observed` are not named, the name will be
+        set to 'Col.Value'.
+
     p_values : list-like, optional
         List of p-values from a test of independence between row and column
         variables (e.g. chi-square, g-test, etc). Values below 0.05 will be
@@ -95,13 +106,28 @@ def plot_expectation_difference(observed, expected, normalize=False,
         # calculate percent error 
         difference = (observed - expected) / (expected) * 100
         ylab = 'Deviation from Expectation'
+    
+    # set names for columns and rows for plotting purposses
+    if row_name is None:
+        if difference.index.name is not None:
+            row_name = difference.index.name
+        else:
+            row_name = 'Row.Value'
+    difference.index.name = row_name 
+
+    if col_name is None:
+        if difference.columns.name is not None:
+            col_name = difference.columns.name
+        else:
+            col_name = 'Col.Value'
+    difference.columns.name = col_name
 
     # treat categorical data as strings
     difference.rename(columns=str, inplace=True)
-    difference['Cluster'] = difference.index.values
-    plot_data = pd.melt(difference, id_vars='Cluster')
-    figure = sns.barplot(x='Cluster', y='value', hue=compare_col,
-                         data=plot_data, hue_order=column_order)
+    difference[row_name] = difference.index.values
+    plot_data = pd.melt(difference, id_vars=row_name, var_name=col_name)
+    figure = sns.barplot(x=row_name, y='value', hue=col_name,
+                         data=plot_data, hue_order=column_order, ax=ax)
 
     # fix axes
     if normalize:
@@ -111,7 +137,7 @@ def plot_expectation_difference(observed, expected, normalize=False,
     plt.ylabel(ylab)
 
     # fix legend
-    figure.legend_.set_title(compare_col[0].upper() + compare_col[1:])
+    figure.legend_.set_title(col_name[0].upper() + col_name[1:])
     figure.legend_.set_frame_on(False)
 
     # add denetors for statistically significant deviations
@@ -142,8 +168,8 @@ def plot_expectation_difference(observed, expected, normalize=False,
     
     return figure
 
-
-def plot_umap(anno_df, color_col=None, shape_col=None):
+# TODO add gene expression coloring, and optional zero greying out
+def plot_umap(anno_df, color_col=None, shape_col=None, gene=None, ax=None):
     """
     Plot cells along their UMAP dimensions.
     
@@ -167,11 +193,25 @@ def plot_umap(anno_df, color_col=None, shape_col=None):
         Scatter plot of observations along UMAP axes.
     """
     plt.style.use('fivethirtyeight')
+    if gene is not None:
+        if gene not in anno_df.var.index:
+            raise ValueError('{} not found in `anno_df`'.format(gene))
+        if color_col is not None:
+            Warning('`color_col` already provided. Overriding to gene ' + 
+                    'expression.')
+        exprs = np.array(anno_df[:, gene].X)
+        color_col = sc_utils.get_gene_identifier(gene, anno_df.var)
+        anno_df.obs[color_col] = exprs
+        cmap = 'magma'
+    else:
+        cmap = None
+
     figure = sns.scatterplot(data=anno_df.obs.sort_values(color_col),
                              x='umap1', y='umap2', hue=color_col,
-                             style=shape_col, s=100)
+                             style=shape_col, s=100, alpha=0.85,
+                             palette=cmap, ax=ax)
 
-    if color_col is not None and shape_col is not None:
+    if color_col is not None and shape_col is not None and ax is None:
         patches, labels = figure.get_legend_handles_labels()
         figure.legend_.remove()
         color_idx = [i for i, x in enumerate(labels) if x == color_col][0]
@@ -180,30 +220,28 @@ def plot_umap(anno_df, color_col=None, shape_col=None):
         labels[shape_idx] = labels[shape_idx][0].upper() + labels[shape_idx][1:]
 
         color_order = np.argsort(labels[color_idx + 1:shape_idx])
-        color_order = [color_idx] + list(color_order + 1)
+        color_order = [0] + list(color_order + 1)
         color_legend = plt.legend(
                          [patches[color_idx:shape_idx][x] for x in color_order],
                          [labels[color_idx:shape_idx][x] for x in color_order],
                          loc=0, frameon=False)
         shape_order = np.argsort(labels[shape_idx + 1:])
-        shape_order = [shape_idx] + list(shape_order + 1)
+        shape_order = [0] + list(shape_order + 1)
         figure.legend(
-                     [patches[shape_idx:][shape_order][x] for x in color_order],
-                     [labels[shape_idx:][shape_order][x] for x in color_order],
+                     [patches[shape_idx:][x] for x in shape_order],
+                     [labels[shape_idx:][x] for x in shape_order],
                      loc=4, frameon=False)
         plt.gca().add_artist(color_legend)
 
-    elif color_col is not None or shape_col is not None:
+    elif color_col is not None or shape_col is not None and ax is None:
         patches, labels = figure.get_legend_handles_labels()
         labels[0] = labels[0][0].upper() + labels[0][1:]
         figure.legend_.remove()
         label_order = np.argsort(labels[1:])
         label_order = [0] + list(label_order + 1)
         figure.legend([patches[x] for x in label_order],
-                      [labels[x] for x in label_order], loc=0,
-                      frameon=False)
-    plt.show()
-    plt.cla()
+                      [labels[x] for x in label_order], loc=0, frameon=False)
+    return figure
 
 
 def label_kde(x, color, label):
@@ -455,7 +493,7 @@ def plot_mixture(X, gmm, gene_name=None):
     plt.plot(space, gmm.distributions[1].probability(space), linestyle=':',
              label='Signal Model ~ {}'.format(signal_model), color=colors[0],
              linewidth=3)
-    filtered, threshold = sc_utils.threshold_expression(X, method='mixture')
+    filtered, threshold = sc_expression.threshold_expression(X, method='mixture')
     plt.axvline(x=threshold, linestyle='--',
                 label='Noise Threshold = {:0.2f}'.format(threshold),
                 color='black')
@@ -506,9 +544,9 @@ def distribution_plots(X):
         [description]
     """
     fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
-    sns.distplot(X, bins=30, ax=ax1)
+    sns.distplot(X, bins=30, ax=ax1, kde=False, norm_hist=True)
     sns.distplot(X, bins=30, ax=ax2, hist_kws={'cumulative': True},
-                kde_kws={'cumulative': True})
+                 kde=False, norm_hist=True)
 
     return fig
 
