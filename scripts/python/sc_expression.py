@@ -3,9 +3,11 @@ from scipy import stats
 from anndata.base import ArrayView
 from skimage.filters import threshold_otsu
 import re
+import pandas as pd
 
 import sc_classes
 import sc_utils
+import sc_plotting
 
 def set_on_off(anno_df, method='mixture', test_fits=True, overwrite=False):
     """
@@ -123,7 +125,7 @@ def threshold_expression(X, value=None, method='otsu'):
 
 
 def compare_non_zero_expression(anno_df, gene, group_col, groups,
-                               compare_zeros=True):
+                               compare_zeros=True, plot=True):
     """[summary]
     
     Parameters
@@ -144,6 +146,10 @@ def compare_non_zero_expression(anno_df, gene, group_col, groups,
     [type]
         [description]
     """
+    remove_noise = True
+    if remove_noise:
+        X = threshold_expression(anno_df[:, gene].X, method='mixture')[0]
+        anno_df[:, gene].X = X
 
     regex = [re.compile(x) for x in groups]
     group_1 = sc_utils.filter_cells(anno_df, group_col,
@@ -159,7 +165,7 @@ def compare_non_zero_expression(anno_df, gene, group_col, groups,
 
     if compare_zeros:
         g1_not = len(non_zero_g1)
-        g1_zeros = group_2.shape[0] - g1_not
+        g1_zeros = group_1.shape[0] - g1_not
         g2_not = len(non_zero_g2)
         g2_zeros = group_2.shape[0] - g2_not
         #                   group1    group 2
@@ -175,10 +181,78 @@ def compare_non_zero_expression(anno_df, gene, group_col, groups,
     t_val, t_p = stats.ttest_ind(a=non_zero_g1, b=non_zero_g2)
     out_dict['t.value'] = t_val
     out_dict['ttest.pvalue'] = t_p
-    out_dict['group1.avg'] = np.mean(non_zero_g1)
-    out_dict['group2.avg'] = np.mean(non_zero_g2)
-    out_dict['group1.std'] = np.std(non_zero_g1)
-    out_dict['group2.std'] = np.std(non_zero_g2)
+    out_dict['group1.avg'] = float(np.mean(non_zero_g1))
+    out_dict['group2.avg'] = float(np.mean(non_zero_g2))
+    out_dict['group1.std'] = float(np.std(non_zero_g1))
+    out_dict['group2.std'] = float(np.std(non_zero_g2))
     out_dict['gene'] = gene
+    out_dict.update(anno_df.var.loc[gene, :].to_dict())
+    if plot:
+        import seaborn as sns
+        plot_df = sc_utils.filter_cells(anno_df, group_col,
+                lambda x: any([True for y in regex if y.search(x) is not None]))
+        exprs = np.array(plot_df[:, gene].X)
+        expr_col = sc_utils.get_gene_identifier(gene, plot_df.var)
+        plot_df.obs[expr_col] = exprs
+        group_column = []
+        for x in plot_df.obs[group_col]:
+            if regex[0].search(x) is not None:
+                group_column.append(groups[0])
+            else:
+                group_column.append(groups[1])
+        plot_df.obs[group_col] = group_column
+        # format count data for plotting
+        count_df = pd.DataFrame(data=counts, columns=groups,
+                                index=['Zero', 'Not.Zero'])
+        count_df.index.name = 'Zero.Status'
+        count_df.columns.name= 'Treatment'
 
+        # calculate probabilities for comparison values
+        probabilities = np.sum(count_df, axis=0) / np.sum(count_df.values)
+
+        # calculate total number of cells per cluster in comparison
+        group_counts = np.sum(count_df, axis=1)
+        
+        # matrix multipy cluster counts and condition probabilities to get
+        # expected counts
+        expectation = group_counts.values.reshape((count_df.shape[0], 1))\
+                    @ probabilities.values.reshape((1, count_df.shape[1]))
+        expectation = pd.DataFrame(data=expectation, index=count_df.index,
+                                   columns=count_df.columns)
+        fig, axes = plt.subplots(2, 2, figsize=(12, 12))
+        # plot expectation deviation
+        fisher_plot = sc_plotting.plot_expectation_difference(count_df,
+                                      expectation, normalize=False,
+                                      ax=axes[0][1])
+        # plot expression along umap coordinates
+        umap_exprs_plot = sc_plotting.plot_umap(plot_df, shape_col=group_col,
+                                                gene=gene, ax=axes[0][0])
+
+        # plot expression between treatment
+        zero_expr_plot = sns.boxplot(data=plot_df.obs, x=group_col, y=expr_col,
+                                     showfliers=False, ax=axes[1][0])
+        zero_expr_plot = sns.swarmplot(data=plot_df.obs, x=group_col,
+                                       y=expr_col, ax=zero_expr_plot,
+                                       color="0.25")
+        non_zero = plot_df.obs[plot_df.obs[expr_col] != 0]
+        non_zero_plot = sns.boxplot(data=non_zero, x=group_col, y=expr_col,
+                                    showfliers=False, ax=axes[1][1])
+        non_zero_plot = sns.swarmplot(data=non_zero, x=group_col, y=expr_col, 
+                                      ax=non_zero_plot, color="0.25")
+        # file_name = "../../output/plots/ExprPlots/" + expr_col + '.png'
+        fig.savefig(file_name)
+        plt.close()
+        
     return out_dict
+
+
+if __name__ == "__main__":
+    import sc_clustering
+    anno_df = sc_utils.create_annotated_df(expr_file=sc_clustering.expr_file,
+                                           gene_file=sc_clustering.gene_file,
+                                           cell_file=sc_clustering.cell_file,
+                                           filter_cells=sc_clustering.bad_cells)
+    dan_genes = pd.read_csv('../../files/dan_genes.csv')
+    dan_spus = dan_genes['Dan.SPU.updates'].values
+    dan_df = sc_utils.filter_genes(anno_df, 'SPU', lambda x: x in dan_spus)
+    genes = dan_df.var.index.values
