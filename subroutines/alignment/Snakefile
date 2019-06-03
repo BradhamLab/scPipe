@@ -22,8 +22,8 @@ IDS = list(DIRNAMES.keys())
 
 rule all:
     input:
-        expand(os.path.join(config['dirs']['output'], 'cufflinks', '{sample}',
-                     'isoforms.fpkm_tracking'), sample=IDS)
+        expand(os.path.join(config['dirs']['output'], 'counts', '{sample}.txt',
+               sample=IDS)
 # Run read quality control before alignment
 subworkflow quality_control:
     workdir: "../qc"
