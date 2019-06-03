@@ -7,8 +7,9 @@ Date: August 16, 2018
 
 import os
 import re
-import numpy as np
 import subprocess as sbp
+
+import numpy as np
 import yaml
 
 # General helper functions
@@ -85,13 +86,11 @@ def run_output(config_dict):
     output_dict = {'alignment':
                    os.path.join(config_dict['dirs']['output'], 'scPipe.out'),
                    'fastp_summary':
-                   (os.path.join(config_dict['dirs']['output'], 'scPipe.out'),
                    os.path.join(config_dict['dirs']['output'], 'fastp_summary',
-                                'report.html')),
+                                'report.html'),
                    'count_matrix':
-                   (os.path.join(config_dict['dirs']['output'], 'scPipe.out'),
                    os.path.join(config_dict['dirs']['output'], 'matrix',
-                                'count_matrix.csv')),
+                                'count_matrix.csv'),
                    'multiqc':
                    (os.path.join(config_dict['dirs']['output'], 'matrix',
                                 'count_matrix.csv'),

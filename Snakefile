@@ -22,43 +22,51 @@ subworkflow read_alignment:
     workdir: './subroutines/alignment'
     snakefile: './subroutines/alignment/Snakefile'
 
+print(utils.run_output(config))
+
 rule all:
     input:
         utils.run_output(config)
 
 
-rule run_pipeline:
-    input:
-        read_alignment(expand(os.path.join(config['dirs']['output'], 'counts',
-                                           '{sample}.txt'), sample=IDS))
-    output:
-        os.path.join(config['dirs']['output'], 'scPipe.out')
-    shell:
-        'echo "Alignment complete!" > {output}'
+# rule run_pipeline:
+#     input:
+#         read_alignment(expand(os.path.join(config['dirs']['output'], 'counts',
+#                                            '{sample}.txt'), sample=IDS))
+#     output:
+#         os.path.join(config['dirs']['output'], 'scPipe.out')
+#     shell:
+#         'echo "Alignment complete!" > {output}'
 
 
-# summarize `fastp` filtered reads
-rule summarize_fastp:
-    params:
-        fastp=os.path.join(config['dirs']['output'], 'qc'),
-        outdir=os.path.join(config['dirs']['output'], 'fastp_summary'),
-        regex=config['sample_regex']['treatment'],
-        bad=config['thresholds']['bad'],
-        ugly=config['thresholds']['ugly']
-    output:
-        os.path.join(config['dirs']['output'], 'fastp_summary', 'report.html'),
-        os.path.join(config['dirs']['output'], 'fastp_summary',
-                     'read_summary.csv')
-    script:
-        'scripts/python/summarize_read_counts.py'
+# # summarize `fastp` filtered reads
+# rule summarize_fastp:
+#     input:
+#         os.path.join(config['dirs']['output'], 'scPipe.out')
+#     params:
+#         fastp=os.path.join(config['dirs']['output'], 'qc'),
+#         outdir=os.path.join(config['dirs']['output'], 'fastp_summary'),
+#         regex=config['sample_regex']['treatment'],
+#         bad=config['thresholds']['bad'],
+#         ugly=config['thresholds']['ugly']
+#     output:
+#         os.path.join(config['dirs']['output'], 'fastp_summary', 'report.html'),
+#         os.path.join(config['dirs']['output'], 'fastp_summary',
+#                      'read_summary.csv')
+#     script:
+#         'scripts/python/summarize_read_counts.py'
 
 
 # combine counts into matrix
 rule create_count_matrix:
+    input:
+        os.path.join(config['dirs']['output'], 'scPipe.out')
     params:
         dir=os.path.join(config['dirs']['output'], 'counts')
     output:
-        csv=os.path.join(config['dirs']['output'], 'matrix', 'count_matrix.csv')
+        count=os.path.join(config['dirs']['output'], 'matrix',
+                           'count_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'matrix', 'tpm_matrix.csv')
     script:
         'scripts/python/merge_read_counts.py'
 
@@ -92,6 +100,7 @@ rule combine_data:
     input:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
                           'count_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'matrix', 'tpm_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
     params:
         flag=config['flags']['combine_data'],
@@ -101,11 +110,30 @@ rule combine_data:
     script:
         'scripts/python/combine_datasets.py'
 
+# Collapse count matrix and feature annotations down to gene level from
+# transcript level.
+rule collapse_annotations:
+    input:
+        flag=os.path.join(config['dirs']['output'], 'combined.out')
+        cmat=os.path.join(config['dirs']['output'], 'matrix',
+                          'count_matrix.csv'),
+        meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
+        annos=config['files']['gene_annos']
+    output:
+        cmat=os.path.join(config['dirs']['output'], 'matrix',
+                          'collapsed_counts.csv'),
+        annos=os.path.join(config['dirs']['output'], 'annotations',
+                           'collapsed_annotations.csv')
+    script:
+        'scripts/python/collapse_to_genes.py'
+
+
 # pre-process the count matrix performing gene/sample filtering.
 rule preprocess_data:
     input:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
                           'count_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'matrix', 'tpm_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv'),
         after_combine=os.path.join(config['dirs']['output'], ('combined.out'))
     params:
@@ -115,6 +143,8 @@ rule preprocess_data:
     output:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
                           'filtered_count_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'matrix',
+                         'filtered_tpm_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'metadata',
                           'filtered_metadata.csv')
     script:
@@ -125,6 +155,8 @@ rule normalize_data:
     input:
         cmat=os.path.join(config['dirs']['output'], 'matrix',
                           'filtered_count_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'matrix',
+                         'filtered_tpm_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'metadata',
                           'filtered_metadata.csv')
     params:
@@ -132,6 +164,8 @@ rule normalize_data:
     output:
         cmat=os.path.join(config['dirs']['output'], 'final',
                           'normalized_log_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'final',
+                         'normalized_tpm_matrix.csv'),
         meta=os.path.join(config['dirs']['output'], 'final',
                           'metadata.csv')
     script:
@@ -140,10 +174,16 @@ rule normalize_data:
 rule impute_dropouts:
     input:
         cmat=os.path.join(config['dirs']['output'], 'final',
-                          'normalized_log_matrix.csv')
+                          'normalized_log_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'final',
+                         'normalized_tpm_matrix.csv')
+    params:
+        plot_dir=os.path.join(config['dirs']['output'], 'plots')
     output:
-        mat=os.path.join(config['dirs']['output'], 'final',
-                          'imputed_log_matrix.csv')
+        cmat=os.path.join(config['dirs']['output'], 'final',
+                         'imputed_log_matrix.csv'),
+        tpm=os.path.join(config['dirs']['output'], 'final',
+                         'imputed_tpm_matrix.csv')
     script:
         'scripts/python/impute_dropouts.py'
                 

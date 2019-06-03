@@ -11,14 +11,14 @@ configfile: '../../files/config.yaml'
 config = utils.configure_run(config)
 
 # set global parameter values
-END_KEYS = sorted(list(config['end_denote'].keys()))
+END_KEYS = sorted(list(config['dataset']['ends'].keys()))
 DIRNAMES = utils.link_ids_to_input(config['dirs']['data'],
                                    config['sample_regex']['id'])
 rule all:
     input:
         expand(os.path.join(config['dirs']['output'], 'qc', '{sample}',
                             '{sample}_{end}_qc.fastq.gz'),
-               sample=list(DIRNAMES.keys()), end=config['end_denote'])
+               sample=list(DIRNAMES.keys()), end=END_KEYS)
         
 # combine lanes for each read direction
 rule fastq_combine:
@@ -53,6 +53,6 @@ rule fastp_qc:
         json=os.path.join(config['dirs']['output'], 'qc', '{sample}',
                           'fastp.json')
     shell:
-        'source activate qc;'
+        'source activate alignment;'
         '(fastp {params.p1} -i {input.r1} -I {input.r2} -o {output.r1} -O '
         '{output.r2} -h {output.html} -j {output.json}) 2> {log}'

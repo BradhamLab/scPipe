@@ -27,10 +27,13 @@ def load_datasets(output_dirs):
     for each in output_dirs:
         cmatrix = pd.read_csv(os.path.join(each, 'matrix', 'count_matrix.csv'),
                               index_col=0)
+        tpm = pd.read_csv(os.path.join(each, 'matrix', 'tpm_matrix.csv'),
+                          index_col=0)
         meta = pd.read_csv(os.path.join(each, 'metadata', 'metadata.csv'),
                            index_col=0)
         cmatrix, meta = ensure_unique_batch_and_sample_ids(cmatrix, meta)
-        datasets.append({'counts': cmatrix, 'meta': meta})
+        tpm.columns = cmatrix.columns
+        datasets.append({'counts': cmatrix, 'tpm': tpm, 'meta': meta})
 
     return datasets
 
@@ -77,7 +80,7 @@ def ensure_unique_batch_and_sample_ids(cmat, meta):
     return(cmat, meta)
 
 
-def rewrite_originals(cmat_csv, meta_csv):
+def rewrite_originals(cmat_csv, tpm_csv, meta_csv):
     """
     Rewrite original data to new files.
 
@@ -87,11 +90,12 @@ def rewrite_originals(cmat_csv, meta_csv):
 
     Args:
         cmat_csv (string): path to count matrix file.
+        tpm_csv (string): path to transcript per million matrix file.
         meta_csv (string): path to meta data file.
     Returns:
         None
     """
-    for each in [cmat_csv, meta_csv]:
+    for each in [cmat_csv, tpm_csv, meta_csv]:
         data = pd.read_csv(each, index_col=0)
         path_split = os.path.split(each)
         new_file = os.path.join(path_split[0], 'original_' + path_split[1])
@@ -112,23 +116,24 @@ def combine_datasets(datasets):
             dataframes (count, meta).
     """
     count = combine_count_data([x['counts'] for x in datasets])
+    tpm = combine_count_data([x['tpm'] for x in datasets])
     meta = combine_meta_data([x['meta'] for x in datasets])
-    return (count, meta)
+    return (count, tpm, meta)
 
 
 def combine_count_data(count_matrices):
     """
-    Merge count matrices on gene names.
+    Merge count/tpm matrices on gene names.
 
     Merge count matrices on gene names (rows). Performs an outer join and fills
     missing values with zeros, as these genes would have been removed from a
     specific count matrix if no samples had non-zero mappings.
 
     Args:
-        count_matrices (list, pd.DataFrame): count matrices from each
+        count_matrices (list, pd.DataFrame): count/tpm matrices from each
             independent scPipe run.
     Returns:
-        (pd.DataFrame): merged count data from all runs. 
+        (pd.DataFrame): merged count/tpm data from all runs. 
     """
     for i in range(1, len(count_matrices)):
         count_matrices[0] = count_matrices[0].merge(count_matrices[i],
@@ -157,7 +162,8 @@ if __name__ == "__main__":
         msg = "No data merging performed."
         if snakemake.params['flag']:
             # save un-merged data
-            rewrite_originals(snakemake.input['cmat'], snakemake.input['meta'])
+            rewrite_originals(snakemake.input['cmat'], snakemake.input['tpm'],
+                              snakemake.input['meta'])
 
             # merge count and meta data
             outdir = os.path.commonpath([snakemake.input['cmat'],
@@ -167,12 +173,15 @@ if __name__ == "__main__":
 
             # write data to original input locations 
             combined[0].to_csv(snakemake.input['cmat'])
-            combined[1].to_csv(snakemake.input['meta'])
+            combined[1].to_csv(snakemake.input['tpm'])
+            combined[2].to_csv(snakemake.input['meta'])
 
             # write output file expected by snakemake
             msg = "Succesfully combined datasets.\n\n"\
                   + "Merged data can be found in the original locations: \n"\
-                  + "\tcount: {}\n\tmeta: {}\n".format(snakemake.input['cmat'],
+                  + "\tcount: {}\n\ttpm\n\tmeta: {}\n".format(
+                                                       snakemake.input['cmat'],
+                                                       snakemake.input['tpm'],
                                                        snakemake.input['meta'])\
                   + "Original, un-merged data is also housed in the same "\
                   + "original parent directory with the 'original_' prefix.\n"\

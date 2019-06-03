@@ -18,10 +18,14 @@ output/*
 logs/*
 
 # ignore config files as they're computer specific
-config.yaml
+*config.yaml
 
 # ignore test scripts
 scripts/tests/*
 
 # ignore __pycache__
 *__pycache__
+
+# ignore R files
+*.RData
+*.Rhistory

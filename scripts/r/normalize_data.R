@@ -4,14 +4,15 @@
 #' @date: August 20, 2018
 
 
-require(scran)
-require(scater)
-require(SingleCellExperiment)
-require(scater)
-require(umap)
-require(ggplot2)
-require(reshape2)
-
+suppressMessages(require(scran))
+suppressMessages(require(scater))
+suppressMessages(require(SingleCellExperiment))
+suppressMessages(require(monocle))
+suppressMessages(require(scater))
+suppressMessages(require(umap))
+suppressMessages(require(ggplot2))
+suppressMessages(require(reshape2))
+suppressMessages(require(cowplot))
 
 #' Normalize Data
 #'
@@ -22,94 +23,68 @@ require(reshape2)
 #'   read counts.
 #' @param metadata (data.frame): data.frame containing cell
 #'   meta data including a `batch` column for cell batches.
-#' @param cluster (boolean): whether to perform clustering
-#'   prior to cell pooling.
-#' @param min_cluster_size (int): minimum number of cells
-#'   per cluster.
-#' @param step_size (int): value to increment step by when
-#'   setting the size sequence in `scran::ComputeSumFactors`.
-#'
-#' @return (SingleCellExperiment): SingleCellExperiment with
-#'   normalized expression values in the `exprs` slot.
 #' @export
-normalize_data <- function(count_matrix, metadata, cluster=FALSE,
-                           min_cluster_size=5, step_size=5) {
-  batch_sizes <- sapply(unique(metadata$batch), function(x) {
-    return(sum(metadata$batch == x))
-  })
-  counts = as.matrix(count_matrix)
-  log_counts <- log_transform_counts(counts)
+batch_normalize_data <- function(count_matrix, metadata) {
 
+  # create SingleCellExperiment object for normalization
+  counts <- as.matrix(count_matrix)
+  log_counts <- log_transform_counts(counts)
   sce <- SingleCellExperiment::SingleCellExperiment(
            assays=list('counts'=counts, 'logcounts'=log_counts),
            colData=metadata)
-  clusters <- NULL
-  max_size <- step_size * floor(ncol(count_matrix)/2/step_size)
-  if (cluster) {
-    clusters <- scran::quickCluster(sce, min.size=min_cluster_size,
-                                    max.size=max_size, assay.type='logcounts')
-    max_size = step_size*floor(min(table(clusters))/step_size)
-  }
-  sce <- scran::computeSumFactors(sce, size=seq(20, max_size, step_size),
-                                  cluster=clusters, assay.type='counts')
-  norm <- scater::normalizeSCE(sce, exprs_values='counts', return_log=FALSE)
-  logcounts(norm) <- log_transform_counts(normcounts(norm))
+
+  # compute batch-specific sum factors
+  batches <- unique(metadata$batch)
+  samples_per_batch <- sapply(batches, function(x) {
+    sum(metadata$batch == x)
+  })
+  by_batch <- lapply(batches[-samples_per_batch], function(x) {
+    return(scran::computeSumFactors(filter(sce, batch == x)))
+    })
+  # set multiBatchNorm arguments
+  by_batch$norm.args <- list('return_log' = TRUE)
+  batch_norm <- do.call(scran::multiBatchNorm, by_batch)
+
+  # combine batch normalized sce's
+  norm <- do.call(cbind, batch_norm)
   return(norm)
 }
 
+
 #' Log Transform Counts Data
 #'
-#' Log10 transform count data. Sets zeros to `zero_sub` to avoid negative
-#' infinities.
+#' Log2 transform count data.
+#'
+#' Log2 transform count data while providing an offset to avoid negative and
+#' undefined values.
 #'
 #' @param count_matrix (data.frame): gene x sample read count data.
-#' @param zero_sub (float): replacement value for zeros.
+#' @param offset (float): value to displace values by to ensure non-negative
+#'   log values. Default is 1.
 #'
 #' @return (data.frame): log-transformed read counts.
 #' @export
-log_transform_counts <- function(count_matrix, zero_sub=10^(-6)) {
-  log_counts = log10(as.matrix(count_matrix))
-  log_counts[log_counts == -Inf] = log10(10^(-6))
-  return(log_counts)
+log_transform_counts <- function(count_matrix, offset=1) {
+  return(log2(as.matrix(count_matrix) + offset))
 }
 
-
-#' Remove Batch Effects
+#' Estimate absolute abundance of transcripts
 #'
-#' Remove batch effects from expression data.
+#' Estimates absolute abundance of transcripts from TPM data using the Census
+#' Method outlined in Monocle.
 #'
-#' @param sce (SingleCellExperiment): SingleCellExperiment object
-#'   with normalized count data.
+#' @param tpm_matrix (data.frame): g x sample tpm data
 #'
-#' @return (SingleCellExperiment): batch corrected data.
-#' @export
-remove_batch_effects <- function(sce, n_mnn=20) {
-  # subset log10 normalized expression matrix by batch
-  batches <- levels(colData(sce)$batch)
-  expr_batches <- lapply(batches, function(x) {
-    cells <- row.names(subset(colData(sce), batch == x))
-    expr_data <- logcounts(sce)[ , cells]
-    return(expr_data)
-  })
-  # make largest batch reference batch
-  cells_per_batch <- sapply(expr_batches, ncol)
-  expr_batches <- expr_batches[order(cells_per_batch, decreasing=TRUE)]
-
-  # set mnnCorrect arguments
-  expr_batches$k <- n_mnn
-  expr_batches$cos.norm.in <- TRUE
-  expr_batches$cos.norm.out <- FALSE  # can change this depending on downstream
-  corrected <- do.call(scran::mnnCorrect, expr_batches)
-
-  # combine corrected expression matrices
-  combined <- do.call(cbind, corrected$corrected)
-  combined <- combined[ , colnames(logcounts(sce))] # maintain original order
-
-  # create batch-corrected sce
-  out <- SingleCellExperiment::SingleCellExperiment(
-           assays=list('logcounts'=combined),
-           colData=colData(sce))
-  return(out)
+#' @return (data.matrix): matrix of estimate counts.
+#'
+#' @references
+#'   Qiu, X., Hill, A., Packer, J., Lin, D., Ma, Y.-A., & Trapnell, C. (2017).
+#'     Single-cell mRNA quantification and differential analysis with Census.
+#'     Nature Methods, 14(3), 309–315. https://doi.org/10.1038/nmeth.4150
+absolute_abundance <- function(tpm_matrix) {
+  tpm_cds <- suppressWarnings(monocle::newCellDataSet(as.matrix(tpm_matrix)))
+  abs_matrix <- monocle::relative2abs(tpm_cds, method='tpm_fraction')
+  return(abs_matrix)
 }
 
 #' Visualize Normalization
@@ -138,7 +113,7 @@ visualize_normalization <- function(counts, norm) {
   # log transform counts in extreme cells
   log_count_df <- as.data.frame(
                     log_transform_counts(t(counts[ , c(top_5, bottom_5)])))
-  zero_measures <- log_count_df == -6
+  zero_measures <- log_count_df == 0
   log_count_df[zero_measures] <- NA
   log_count_df[top_5, 'Count.Level'] <- 'High'
   log_count_df[bottom_5, 'Count.Level'] <- 'Low'
@@ -189,13 +164,13 @@ visualize_normalization <- function(counts, norm) {
 #' @return (ggplot): scatter plot visualizing batch dispersion
 #'  pre and post batch effect removal
 #' @export
-visualize_batch_effect <- function(norm, norm_batch) {
-  batch_umap <- as.data.frame(umap(t(logcounts(norm)))$layout)
+visualize_batch_effect <- function(counts, norm_batch) {
+  batch_umap <- as.data.frame(umap(t(log_transform_counts(counts)))$layout)
   colnames(batch_umap) <- c('UMAP1', 'UMAP2')
   no_batch_umap <- as.data.frame(umap(t(logcounts(norm_batch)))$layout)
   colnames(no_batch_umap) <- c('UMAP1', 'UMAP2')
 
-  batch_umap[row.names(colData(norm)), 'Batch'] <- colData(norm)$batch
+  batch_umap[row.names(colData(norm_batch)), 'Batch'] <- colData(norm_batch)$batch
   batch_umap$Batch.Normalized <- 'Before'
   no_batch_umap[row.names(colData(norm_batch)), 'Batch'] <- colData(norm_batch)$batch
   no_batch_umap$Batch.Normalized <- 'After'
@@ -212,7 +187,8 @@ visualize_batch_effect <- function(norm, norm_batch) {
 
 #' Preprocess Read Count Expression Data
 #'
-#' @param count_data (data.frame): gene x sample read counts
+#' @param count_data (data.frame): gene x sample read counts.
+#' @param tpm_data (data.frame): gene x sample tpm matrix.
 #' @param metadata (data.frame): metadata containing information for cells.
 #'   including a `batch` column.
 #'
@@ -221,20 +197,23 @@ visualize_batch_effect <- function(norm, norm_batch) {
 #'   correction visualization ('batch_viz').
 #'
 #' @export
-main <- function(count_data, metadata) {
-  norm_data <- normalize_data(count_data, metadata, cluster=FALSE)
-  norm_viz <- visualize_normalization(count_data, norm_data)
-  batch_norm <- remove_batch_effects(norm_data)
-  batch_viz <- visualize_batch_effect(norm_data, batch_norm)
-  out_list <- list('data'=batch_norm, 'norm_viz'=norm_viz,
-                   'batch_viz'=batch_viz)
-  return(out_list)
+main <- function(count_data, tpm_data, metadata) {
+  out_data <- lapply(list(count_data, tpm_data), function(data) {
+    normalized <- batch_normalize_data(data, metadata)
+    norm_viz <- visualize_normalization(data, normalized)
+    batch_viz <- visualize_batch_effect(data, normalized)
+    return(list('data'=normalized, 'norm_viz'=norm_viz, 'batch_viz'=batch_viz))
+  })
+  names(out_data) <- c('count', 'tpm')
+  return(out_data)
 }
 
 if (exists('snakemake')) {
   # read in data
   count_data <- read.csv(snakemake@input[['cmat']],
                          row.names=1, check.names=FALSE)
+  tpm_data <- read.csv(snakemake@input[['tpm']],
+                       row.names=1, check.names=FALSE)
   metadata <- read.csv(snakemake@input[['meta']],
                        row.names=1, check.names=FALSE)
 
@@ -244,23 +223,41 @@ if (exists('snakemake')) {
   }
 
   # get processed data and visualizations
-  out_data <- main(count_data, metadata)
+  out_data <- main(count_data, tpm_data, metadata)
 
-  # write normalized log data to 'final' directory
-  write.csv(logcounts(out_data$data), file=snakemake@output[['cmat']],
+  # write normalized log-count data to 'final' directory
+  write.csv(logcounts(out_data$count$data), file=snakemake@output[['cmat']],
+            quote=FALSE)
+
+  # write normalized tpm data to 'final' directory
+  write.csv(logcounts(out_data$tpm$data), file=snakemake@output[['tpm']],
             quote=FALSE)
 
   # write metadata to 'final' directory
-  write.csv(colData(out_data$data), file=snakemake@output[['meta']],
+  write.csv(metadata, file=snakemake@output[['meta']],
             quote=FALSE)
 
   # write normalization plot
   ggsave(filename=file.path(snakemake@params[['plot_dir']],
-                            'normalization.png'), plot=out_data$norm_viz,
-         device='png', width=10, height=8, dpi=600, units='in')
+                            'count_normalization.png'),
+         plot=out_data$count$norm_viz,
+         device='png')
 
   # write batch-effect removal plot
   ggsave(filename=file.path(snakemake@params[['plot_dir']],
-                            'batch_removal.png'), plot=out_data$batch_viz,
-         device='png', width=10, height=8, dpi=600, units='in')
+                            'count_batch_removal.png'),
+         plot=out_data$count$batch_viz,
+         device='png')
+
+  # write normalization plot
+  ggsave(filename=file.path(snakemake@params[['plot_dir']],
+                            'tpm_normalization.png'),
+         plot=out_data$tpm$norm_viz,
+         device='png')
+
+  # write batch-effect removal plot
+  ggsave(filename=file.path(snakemake@params[['plot_dir']],
+                            'tpm_batch_removal.png'),
+         plot=out_data$tpm$batch_viz,
+         device='png')
 }
