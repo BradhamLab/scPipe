@@ -1,0 +1,39 @@
+import os
+import glob
+
+HEAD_DIR = "../../../data/scRNASeq/processed/scRNASeq2018-7-11"
+DATA_DIR = "../../../data/scRNASeq/processed/scRNASeq2018-7-11/star/sorted_alignments/"
+SAMPLES = [d for d in glob.glob(DATA_DIR + "**")]
+
+
+rule all:
+    input:
+         [os.path.join(HEAD_DIR, "saturation", "{sample}.csv".format(sample=x))\
+                 for x in SAMPLES],
+         os.path.join(HEAD_DIR, "plots", "saturation.png")
+
+rule bam_to_sam:
+    input:
+        os.path.join(DATA_DIR, "{sample}/{sample}_sorted.bam")
+    output:
+        temp(os.path.join(DATA_DIR, "{sample}/{sample}_sorted.sam"))
+    shell:
+	"samtools view -h -o {output} {input}"
+
+rule transcripts_from_reads:
+    input:
+        sam=os.path.join(DATA_DIR, "{sample}/{sample}_sorted.sam")
+    output:
+        csv=os.path.join(HEAD_DIR, "saturation", "{sample}.csv")
+    script:
+        "../../scripts/python/unique_transcripts.py"
+
+rule plot_saturation:
+    input:
+        csvs=[os.path.join(HEAD_DIR, "saturation", "{sample}.csv".format(sample=x))\
+              for x in SAMPLES]
+    output:
+        png=os.path.join(HEAD_DIR, "plots", "saturation.png")
+    script:
+        "../../scripts/python/plot_saturation.py"
+
