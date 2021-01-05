@@ -12,6 +12,20 @@ import pandas as pd
 import numpy as np
 
 
+
+def simple_merge(count_dir):
+    data_frames = []
+    for x in os.listdir(count_dir):
+        sample = os.path.basename(os.path.splitext(x)[0])
+        sample_df = pd.read_csv(os.path.join(count_dir, x),
+                                index_col=0, sep='\t',
+                                header=0,
+                                names=['Gene', sample],
+                                skiprows=[0])
+        data_frames.append(sample_df)
+    return pd.concat(data_frames, axis=1)
+    
+
 def merge_counts(count_dir):
     """
     Merge featureCounts output from several sample files into a

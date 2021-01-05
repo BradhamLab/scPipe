@@ -4,6 +4,7 @@ from itertools import product
 
 # add scripts to python path for utility functions
 sys.path.append('../../scripts/python')
+shell.prefix('conda activate alignment; ')
 import utils
 
 configfile: '../../files/config.yaml'
@@ -22,12 +23,14 @@ IDS = list(DIRNAMES.keys())
 
 rule all:
     input:
-        expand(os.path.join(config['dirs']['output'], 'counts', '{sample}.txt',
+        expand(os.path.join(config['dirs']['output'], 'counts', '{sample}.txt'),
                sample=IDS)
 # Run read quality control before alignment
 subworkflow quality_control:
-    workdir: "../qc"
-    snakefile: "../qc/Snakefile"
+    workdir:
+        "../qc"
+    snakefile:
+        "../qc/Snakefile"
 
 def get_qc_output(samples, reads):
     expected_output = []
@@ -52,7 +55,6 @@ rule star_generate_genome:
         genome=protected(directory(os.path.join(config['dirs']['output'],
                                    config['dirs']['genome'])))
     shell:
-        'source activate alignment; '
         'mkdir {output.genome}; (STAR --runMode genomeGenerate '
         '--genomeDir {output.genome} --genomeFastaFiles {input.fasta} '
         '--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} '
@@ -78,7 +80,6 @@ rule star_align_reads:
         os.path.join(config['dirs']['output'], 'star', 'alignments', '{sample}',
                     '{sample}Aligned.out.bam')
     shell:
-        'source activate alignment; '
         '(STAR --runMode alignReads --outSAMtype BAM Unsorted '
         '--readFilesCommand zcat --genomeDir {input.genome} '
         '--outFileNamePrefix {params.prefix} '
@@ -100,7 +101,6 @@ rule run_featureCounts:
                          '{sample}.out'),
         final=os.path.join(config['dirs']['output'], 'counts', '{sample}.txt')
     shell:
-        'source activate alignment; '
         '(featureCounts {input} -a {params.gtf} -F GTF -p -o {output.raw} '
         '{params.extra}) 2> {log}; cut -f 1,6-8 {output.raw} > {output.final}'
 

@@ -3,7 +3,7 @@ import glob
 
 HEAD_DIR = "../../../data/scRNASeq/processed/scRNASeq2018-7-11"
 DATA_DIR = "../../../data/scRNASeq/processed/scRNASeq2018-7-11/star/sorted_alignments/"
-SAMPLES = [d for d in glob.glob(DATA_DIR + "**")]
+SAMPLES = [os.path.basename(d) for d in glob.glob(DATA_DIR + "**")]
 
 
 rule all:
@@ -18,7 +18,7 @@ rule bam_to_sam:
     output:
         temp(os.path.join(DATA_DIR, "{sample}/{sample}_sorted.sam"))
     shell:
-	"samtools view -h -o {output} {input}"
+        "set +u; source activate alignment; set -u; samtools view -h -o {output} {input};"
 
 rule transcripts_from_reads:
     input:
@@ -36,4 +36,3 @@ rule plot_saturation:
         png=os.path.join(HEAD_DIR, "plots", "saturation.png")
     script:
         "../../scripts/python/plot_saturation.py"
-

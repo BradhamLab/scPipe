@@ -1,4 +1,8 @@
+import os
+os.environ['QT_QPA_PLATFORM'] = 'offscreen'
+
 from matplotlib import pyplot as plt
+plt.switch_backend('agg')
 import seaborn as sns
 import numpy as np
 import pandas as pd

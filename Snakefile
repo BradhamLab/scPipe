@@ -16,30 +16,33 @@ DIRNAMES = utils.link_ids_to_input(config['dirs']['data'],
                                    config['sample_regex']['id'])
 IDS = list(DIRNAMES.keys())
 
-
+print(IDS)
 # Must align reads before creating count matrix
-subworkflow read_alignment:
-    workdir: './subroutines/alignment'
-    snakefile: './subroutines/alignment/Snakefile'
+print("Output:\n\t{}".format("\n\t".join(utils.run_output(config))))
 
-print(utils.run_output(config))
+subworkflow read_alignment:
+    workdir:
+        "./subroutines/alignment"
+    snakefile:
+        "./subroutines/alignment/Snakefile"
+
 
 rule all:
     input:
         utils.run_output(config)
 
 
-# rule run_pipeline:
-#     input:
-#         read_alignment(expand(os.path.join(config['dirs']['output'], 'counts',
-#                                            '{sample}.txt'), sample=IDS))
-#     output:
-#         os.path.join(config['dirs']['output'], 'scPipe.out')
-#     shell:
-#         'echo "Alignment complete!" > {output}'
+rule run_pipeline:
+    input:
+        read_alignment(expand(os.path.join(config['dirs']['output'], 'counts',
+                                           '{sample}.txt'), sample=IDS))
+    output:
+        os.path.join(config['dirs']['output'], 'scPipe.out')
+    shell:
+        'echo "Alignment complete!" > {output}'
 
 
-# # summarize `fastp` filtered reads
+# summarize `fastp` filtered reads
 # rule summarize_fastp:
 #     input:
 #         os.path.join(config['dirs']['output'], 'scPipe.out')
@@ -78,7 +81,7 @@ rule run_multiqc:
     output:
        os.path.join(config['dirs']['output'], 'multiqc', 'multiqc_report.html')
     shell:
-        'source activate multiqc; multiqc {params.dir} -o {params.loc} -m fastp '
+        'conda activate multiqc; multiqc {params.dir} -o {params.loc} -m fastp '
         '-m featureCounts -m star'
 
 # extract sample metadata from sample ids
@@ -112,20 +115,20 @@ rule combine_data:
 
 # Collapse count matrix and feature annotations down to gene level from
 # transcript level.
-rule collapse_annotations:
-    input:
-        flag=os.path.join(config['dirs']['output'], 'combined.out')
-        cmat=os.path.join(config['dirs']['output'], 'matrix',
-                          'count_matrix.csv'),
-        meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv')
-        annos=config['files']['gene_annos']
-    output:
-        cmat=os.path.join(config['dirs']['output'], 'matrix',
-                          'collapsed_counts.csv'),
-        annos=os.path.join(config['dirs']['output'], 'annotations',
-                           'collapsed_annotations.csv')
-    script:
-        'scripts/python/collapse_to_genes.py'
+# rule collapse_annotations:
+#     input:
+#         flag=os.path.join(config['dirs']['output'], 'combined.out'),
+#         cmat=os.path.join(config['dirs']['output'], 'matrix',
+#                           'count_matrix.csv'),
+#         meta=os.path.join(config['dirs']['output'], 'metadata', 'metadata.csv'),
+#         annos=config['files']['gene_annos']
+#     output:
+#         cmat=os.path.join(config['dirs']['output'], 'matrix',
+#                           'collapsed_counts.csv'),
+#         annos=os.path.join(config['dirs']['output'], 'annotations',
+#                            'collapsed_annotations.csv')
+#     script:
+#         'scripts/python/collapse_to_genes.py'
 
 
 # pre-process the count matrix performing gene/sample filtering.
