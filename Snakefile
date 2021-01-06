@@ -16,7 +16,9 @@ DIRNAMES = utils.link_ids_to_input(config['dirs']['data'],
                                    config['sample_regex']['id'])
 IDS = list(DIRNAMES.keys())
 
-print(IDS)
+print('Discovered samples:\n\t{}'.format(
+     '\n\t'.join([','.join(IDS[i:i + 10]) for i in range(0, len(IDS), 10)])
+))
 # Must align reads before creating count matrix
 print("Output:\n\t{}".format("\n\t".join(utils.run_output(config))))
 
@@ -68,8 +70,7 @@ rule create_count_matrix:
         dir=os.path.join(config['dirs']['output'], 'counts')
     output:
         count=os.path.join(config['dirs']['output'], 'matrix',
-                           'count_matrix.csv'),
-        tpm=os.path.join(config['dirs']['output'], 'matrix', 'tpm_matrix.csv')
+                           'count_matrix.csv')
     script:
         'scripts/python/merge_read_counts.py'
 
@@ -81,8 +82,8 @@ rule run_multiqc:
     output:
        os.path.join(config['dirs']['output'], 'multiqc', 'multiqc_report.html')
     shell:
-        'conda activate multiqc; multiqc {params.dir} -o {params.loc} -m fastp '
-        '-m featureCounts -m star'
+        'source activate multiqc; multiqc {params.dir} -o {params.loc} -m fastp '
+        '-m htseq -m star --force'
 
 # extract sample metadata from sample ids
 rule create_metadata:
