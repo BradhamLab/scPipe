@@ -60,7 +60,7 @@ rule star_generate_genome:
         '--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} '
         '--outFileNamePrefix {params.log} {params.extra}) 2> {log}'
 
-# # align reads
+# # align reads -- output sorted SAM for htseq-count
 rule star_align_reads:
     input:
         quality_control(get_qc_output(IDS, END_KEYS)),
@@ -85,22 +85,53 @@ rule star_align_reads:
         '--outFileNamePrefix {params.prefix} '
         '--readFilesIn {input.r1} {input.r2} {params.extra}) 2> {log}'
 
-
-# create count matrix
-rule run_featureCounts:
+rule filter_gtf_to_exon:
     input:
-        os.path.join(config['dirs']['output'], 'star', 'alignments', '{sample}',
-                     '{sample}Aligned.out.bam')
-    params:
-        gtf=config['files']['gtf'],
-        extra=config['params']['featureCount']
-    log:
-        os.path.join(config['dirs']['log'], 'featureCounts', '{sample}.log')
+        config['files']['gtf']
     output:
-        raw=os.path.join(config['dirs']['output'], 'raw_counts', '{sample}',
-                         '{sample}.out'),
-        final=os.path.join(config['dirs']['output'], 'counts', '{sample}.txt')
+        temp(os.path.join(config['dirs']['output'], 'tmp', 'exons.gtf'))
     shell:
-        '(featureCounts {input} -a {params.gtf} -F GTF -p -o {output.raw} '
-        '{params.extra}) 2> {log}; cut -f 1,6-8 {output.raw} > {output.final}'
+        "awk '$3 == \"exon\" {{ print $0 }}' {input} > {output}"
+
+rule run_htseq_count:
+    input:
+        bam=os.path.join(config['dirs']['output'], 'star', 'alignments', '{sample}',
+                         '{sample}Aligned.out.bam'),
+        gtf=os.path.join(config['dirs']['output'], 'tmp', 'exons.gtf')
+    output:
+        os.path.join(config['dirs']['output'], 'counts', '{sample}_htseq.out')
+    params:
+        extra=config['params']['htseq_count']
+    shell:
+        "samtools sort -n {input.bam} -O sam | htseq-count - {input.gtf} -r name "
+        "{params.extra} > {output}"
+
+rule split_htseq_out:
+    input:
+        os.path.join(config['dirs']['output'], 'counts', '{sample}_htseq.out')
+    output:
+        counts=os.path.join(config['dirs']['output'], 'counts', '{sample}.txt'),
+        summary=os.path.join(config['dirs']['output'], 'counts',
+                             '{sample}_summary.txt')
+    shell: 
+        "cat {input} | grep -vE '^__' > {output.counts}; "
+        "cat {input} | grep '^__' > {output.summary}"
+
+# # create count matrix
+# rule run_featureCounts:
+#     input:
+#         os.path.join(config['dirs']['output'], 'star', 'alignments', '{sample}',
+#                      '{sample}Aligned.out.bam')
+#     params:
+#         gtf=config['files']['gtf'],
+#         extra=config['params']['featureCount']
+#     log:
+#         os.path.join(config['dirs']['log'], 'featureCounts', '{sample}.log')
+#     output:
+#         raw=os.path.join(config['dirs']['output'], 'raw_counts', '{sample}',
+#                          '{sample}.out'),
+#         final=os.path.join(config['dirs']['output'], 'counts', '{sample}.txt')
+#     shell:
+#         '(featureCounts {input} -a {params.gtf} -F GTF -p -o {output.raw} '
+#         '{params.extra}) 2> {log}; cut -f 1,6-8 {output.raw} > {output.final}'
 
