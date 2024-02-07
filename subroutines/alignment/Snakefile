@@ -1,18 +1,20 @@
 import sys
 
-from itertools import product 
+from itertools import product
 
 # add scripts to python path for utility functions
-sys.path.append('../../scripts/python')
-shell.prefix('conda activate alignment; ')
+sys.path.append("../../scripts/python")
+shell.prefix("conda activate alignment; ")
 import utils
 
-configfile: '../../files/config.yaml'
+
+configfile: "../../files/config.yaml"
+
+
 config = utils.configure_run(config)
 
-END_KEYS = sorted(list(config['dataset']['ends'].keys()))
-DIRNAMES = utils.link_ids_to_input(config['dirs']['data'],
-                                   config['sample_regex']['id'])
+END_KEYS = sorted(list(config["dataset"]["ends"].keys()))
+DIRNAMES = utils.link_ids_to_input(config["dirs"]["data"], config["sample_regex"]["id"])
 IDS = list(DIRNAMES.keys())
 # IDS = ['MK886-PMCs-3-G05']
 
@@ -21,10 +23,15 @@ IDS = list(DIRNAMES.keys())
 # expand(os.path.join(config['dirs']['output'], 'raw_counts', '{sample}',
 #                     '{sample}.out'), sample=IDS),
 
+
 rule all:
     input:
-        expand(os.path.join(config['dirs']['output'], 'counts', '{sample}.txt'),
-               sample=IDS)
+        expand(
+            os.path.join(config["dirs"]["output"], "counts", "{sample}.txt"),
+            sample=IDS,
+        ),
+
+
 # Run read quality control before alignment
 subworkflow quality_control:
     workdir:
@@ -32,90 +39,140 @@ subworkflow quality_control:
     snakefile:
         "../qc/Snakefile"
 
+
 def get_qc_output(samples, reads):
     expected_output = []
     for s, r in product(samples, reads):
-        expected_output.append(os.path.join(config['dirs']['output'], 'qc', s,
-                                            '{0}_{1}_qc.fastq.gz'.format(s, r)))
+        expected_output.append(
+            os.path.join(
+                config["dirs"]["output"], "qc", s, "{0}_{1}_qc.fastq.gz".format(s, r)
+            )
+        )
     return expected_output
 
 
 # Align with star
 rule star_generate_genome:
     input:
-        gtf=config['files']['gtf'],
-        fasta=config['files']['genome_fasta']
+        gtf=config["files"]["gtf"],
+        fasta=config["files"]["genome_fasta"],
     params:
-        read_length=(config['dataset']['read_length'] - 1),
+        read_length=(config["dataset"]["read_length"] - 1),
         extra=utils.get_star_genome_params(config),
-        log=os.path.join(config['dirs']['log'], 'star')
+        log=os.path.join(config["dirs"]["log"], "star"),
     log:
-        os.path.join(config['dirs']['log'], 'star', 'star_genome.log')
+        os.path.join(config["dirs"]["log"], "star", "star_genome.log"),
     output:
-        genome=protected(directory(os.path.join(config['dirs']['output'],
-                                   config['dirs']['genome'])))
+        genome=protected(
+            directory(os.path.join(config["dirs"]["output"], config["dirs"]["genome"]))
+        ),
     shell:
-        'mkdir {output.genome}; (STAR --runMode genomeGenerate '
-        '--genomeDir {output.genome} --genomeFastaFiles {input.fasta} '
-        '--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} '
-        '--outFileNamePrefix {params.log} {params.extra}) 2> {log}'
+        "mkdir {output.genome}; (STAR --runMode genomeGenerate "
+        "--genomeDir {output.genome} --genomeFastaFiles {input.fasta} "
+        "--sjdbGTFfile {input.gtf} --sjdbOverhang {params.read_length} "
+        "--outFileNamePrefix {params.log} {params.extra}) 2> {log}"
+
 
 # # align reads -- output sorted SAM for htseq-count
 rule star_align_reads:
     input:
         quality_control(get_qc_output(IDS, END_KEYS)),
-        r1=os.path.join(config['dirs']['output'], 'qc', '{sample}',
-                        '{sample}' + '_{}_qc.fastq.gz'.format(END_KEYS[0])),
-        r2=os.path.join(config['dirs']['output'], 'qc', '{sample}',
-                        '{sample}' + '_{}_qc.fastq.gz'.format(END_KEYS[1])),
-        genome=os.path.join(config['dirs']['genome'])
+        r1=os.path.join(
+            config["dirs"]["output"],
+            "qc",
+            "{sample}",
+            "{sample}" + "_{}_qc.fastq.gz".format(END_KEYS[0]),
+        ),
+        r2=os.path.join(
+            config["dirs"]["output"],
+            "qc",
+            "{sample}",
+            "{sample}" + "_{}_qc.fastq.gz".format(END_KEYS[1]),
+        ),
+        genome=os.path.join(config["dirs"]["genome"]),
     params:
-        prefix=os.path.join(config['dirs']['output'], 'star', 'alignments',
-                            '{sample}', '{sample}'),
-        extra=config['params']['star_align']
+        prefix=os.path.join(
+            config["dirs"]["output"], "star", "alignments", "{sample}", "{sample}"
+        ),
+        extra=config["params"]["star_align"],
     log:
-        os.path.join(config['dirs']['log'], 'star', '{sample}',
-                     'star_alignment.log')
+        os.path.join(config["dirs"]["log"], "star", "{sample}", "star_alignment.log"),
     output:
-        os.path.join(config['dirs']['output'], 'star', 'alignments', '{sample}',
-                    '{sample}Aligned.out.bam')
+        os.path.join(
+            config["dirs"]["output"],
+            "star",
+            "alignments",
+            "{sample}",
+            "{sample}Aligned.out.bam",
+        ),
     shell:
-        '(STAR --runMode alignReads --outSAMtype BAM Unsorted '
-        '--readFilesCommand zcat --genomeDir {input.genome} '
-        '--outFileNamePrefix {params.prefix} '
-        '--readFilesIn {input.r1} {input.r2} {params.extra}) 2> {log}'
+        "(STAR --runMode alignReads --outSAMtype BAM Unsorted "
+        "--readFilesCommand zcat --genomeDir {input.genome} "
+        "--outFileNamePrefix {params.prefix} "
+        "--readFilesIn {input.r1} {input.r2} {params.extra}) 2> {log}"
+
 
 rule filter_gtf_to_exon:
     input:
-        config['files']['gtf']
+        config["files"]["gtf"],
     output:
-        temp(os.path.join(config['dirs']['output'], 'tmp', 'exons.gtf'))
+        temp(os.path.join(config["dirs"]["output"], "tmp", "exons.gtf")),
     shell:
         "awk '$3 == \"exon\" {{ print $0 }}' {input} > {output}"
 
+
+rule sort_bam:
+    input:
+        bam=os.path.join(
+            config["dirs"]["output"],
+            "star",
+            "alignments",
+            "{sample}",
+            "{sample}Aligned.out.bam",
+        ),
+    output:
+        sam=temp(
+            os.path.join(
+                config["dirs"]["output"],
+                "star",
+                "alignments",
+                "{sample}",
+                "{sample}_sorted.sam",
+            )
+        ),
+    shell:
+        "samtools sort -n {input.bam} -O sam > {output.sam}"
+
+
 rule run_htseq_count:
     input:
-        bam=os.path.join(config['dirs']['output'], 'star', 'alignments', '{sample}',
-                         '{sample}Aligned.out.bam'),
-        gtf=os.path.join(config['dirs']['output'], 'tmp', 'exons.gtf')
+        sam=os.path.join(
+            config["dirs"]["output"],
+            "star",
+            "alignments",
+            "{sample}",
+            "{sample}_sorted.sam",
+        ),
+        gtf=config["files"]["gff"],
     output:
-        os.path.join(config['dirs']['output'], 'counts', '{sample}_htseq.out')
+        os.path.join(config["dirs"]["output"], "htseq", "{sample}_htseq.out"),
     params:
-        extra=config['params']['htseq_count']
+        extra=config["params"]["htseq_count"],
     shell:
-        "samtools sort -n {input.bam} -O sam | htseq-count - {input.gtf} -r name "
+        "htseq-count {input.sam} {input.gtf} -r name "
         "{params.extra} > {output}"
+
 
 rule split_htseq_out:
     input:
-        os.path.join(config['dirs']['output'], 'counts', '{sample}_htseq.out')
+        os.path.join(config["dirs"]["output"], "htseq", "{sample}_htseq.out"),
     output:
-        counts=os.path.join(config['dirs']['output'], 'counts', '{sample}.txt'),
-        summary=os.path.join(config['dirs']['output'], 'counts',
-                             '{sample}_summary.txt')
-    shell: 
+        counts=os.path.join(config["dirs"]["output"], "counts", "{sample}.txt"),
+        summary=os.path.join(config["dirs"]["output"], "htseq", "{sample}_summary.txt"),
+    shell:
         "cat {input} | grep -vE '^__' > {output.counts}; "
         "cat {input} | grep '^__' > {output.summary}"
+
 
 # # create count matrix
 # rule run_featureCounts:
@@ -134,4 +191,3 @@ rule split_htseq_out:
 #     shell:
 #         '(featureCounts {input} -a {params.gtf} -F GTF -p -o {output.raw} '
 #         '{params.extra}) 2> {log}; cut -f 1,6-8 {output.raw} > {output.final}'
-

@@ -1,0 +1,45 @@
+dirs:
+  data: /projectnb/bradham/data/RNASeq/raw/ethanol-2020-11-20/Clean/
+  output: /projectnb/bradham/data/RNASeq/processed/ethanol-2020-11-20/
+  log: /projectnb/bradham/data/scRNASeq/processed/ethanol-2020-11-20/logs
+  genome: /projectnb/bradham/data/GenomeIndices/RNASeq/star
+  matrices: [""]
+files:
+  gtf: /projectnb/bradham/data/ReferenceSequences/wray-genome/L_var_clean_utr_extended.gtf
+  gff: /projectnb/bradham/data/ReferenceSequences/wray-genome/L_var_clean_utr_extended.gff
+  genome_fasta: /projectnb/bradham/data/ReferenceSequences/wray-genome/Lvar_genome.fasta
+end_denote:
+  1: forward
+  2: backward
+thresholds:
+  bad: 50000
+  ugly: 250000
+  cpm: 0.5
+  cells: 2
+params:
+  fastp: '-y -Y 30 -w 16'
+  star_genome: '--runThreadN 16'
+  star_align: '--runThreadN 16'
+  featureCount: ''
+  htseq_count: '-t exon -i gene_id'
+sample_regex:
+  id: '$'
+  # batch: 
+  #   1: ''
+  # treatment: 
+  #   ASW: '^ASW'
+  #   Chlorate: '^Chlorate'
+  #   DMSO: '^DMSO'
+  #   MK886: '^MK886'
+  # timepoint:
+  #   '18hpf': ''
+flags:
+  star_est_ChrBinsNbits: True
+  combine_data: False
+dataset:
+  read_length: 100
+  id: 'ethanol-2020-11'
+  ends:
+    1: forward
+    2: backward
+

@@ -41,9 +41,8 @@ def merge_counts(count_dir):
 
 def remove_zero_genes(count_df):
     """Remove genes with no reads mapping to them across samples."""
-    count_df[count_df == 0] = np.NaN
-    filtered = count_df.dropna(how='all')
-    return filtered.fillna(value=0)
+    gene_sums = counts.sum(axis=1)
+    return counts.loc[gene_sums != 0, :]
 
 
 if __name__ == "__main__":
